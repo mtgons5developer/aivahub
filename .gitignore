@@ -1,0 +1,13 @@
+*.log
+arrow/
+.ipynb_checkpoints/
+my_project/
+__pycache__/
+.envrc
+.env
+credentials.json
+.DS_Store
+pgpass.conf
+CSV/
+mylog.txt
+test

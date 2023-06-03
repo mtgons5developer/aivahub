@@ -1,5 +1,10 @@
 Setup your file .env:<b>
 OPENAI_API_KEY=
+GOOGLE_SHEET='https://docs.google.com/spreadsheets/d/[Sheet-ID]/edit?usp=sharing'
+HOST='localhost'
+DATABASE=''
+USER=''
+PASSWORD=''
 
 To set up a credentials.json file, typically used for authentication with various services or APIs, follow these steps:
 
