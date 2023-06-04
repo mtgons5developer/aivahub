@@ -42,8 +42,6 @@ try:
     
     # Get all the values from the sheet
     data = worksheet.get_all_values()
-
-    insert_query = "INSERT INTO review_data_admin (date, author, verified, helpful, title, body, gpt_status, gpt_reason, ben_analysis, paul_analysis, patrick_analysis, drew_analysis, rating, images, videos, url, variation, style) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
     
     # Check if the table exists
     cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'review_data_admin')")
@@ -54,14 +52,15 @@ try:
         create_table_query = """
         CREATE TABLE review_data_admin (
             -- define the table columns here
-            date DATE,
-            author VARCHAR(255),
+            id serial PRIMARY KEY,
+            date text,
+            author text,
             verified VARCHAR(10),
             helpful VARCHAR(10),
             title TEXT,
             body TEXT,
-            gpt_status VARCHAR(50),
-            gpt_reason TEXT,
+            gpt_status VARCHAR(255),
+            gpt_reason VARCHAR(255),
             ben_analysis TEXT,
             paul_analysis TEXT,
             patrick_analysis TEXT,
@@ -71,7 +70,7 @@ try:
             videos TEXT,
             url TEXT,
             variation VARCHAR(255),
-            style VARCHAR(255)
+            style TEXT
         );
         """
         cur.execute(create_table_query)
@@ -82,6 +81,8 @@ try:
         # Skip the header row
         if row[0] == 'id':
             continue
+
+        insert_query = "INSERT INTO review_data_admin (date, author, verified, helpful, title, body, gpt_status, gpt_reason, ben_analysis, paul_analysis, patrick_analysis, drew_analysis, rating, images, videos, url, variation, style) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 
         # Extract the values from the row
         col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18 = row

@@ -22,12 +22,12 @@ create analysis for this review by a customer.
 
 # Generate analysis using OpenAI's Davinci model
 response = openai.Completion.create(
-    engine="davinci",
+    engine="gpt-3.5-turbo",
     prompt=prompt.format(review),
-    max_tokens=100,
+    max_tokens=200,
     n=1,
     stop=None,
-    temperature=0.7,
+    temperature=0.5,
     top_p=1.0,
 )
 
