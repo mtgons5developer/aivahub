@@ -1,16 +1,32 @@
 import os
 import time
+import psycopg2
 import gspread
-from gspread.exceptions import SpreadsheetNotFound, APIError
 from oauth2client.service_account import ServiceAccountCredentials
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-sheet_link = os.getenv('GOOGLE_SHEET')
+# Retrieve the PostgreSQL connection details from environment variables
+db_host = os.getenv('HOST')
+db_port = os.getenv('DB_PORT')
+db_name = os.getenv('DATABASE')
+db_user = os.getenv('USER')
+db_password = os.getenv('PASSWORD')
 
-def sheet():
+# Connect to the PostgreSQL database
+conn = psycopg2.connect(
+    host=db_host,
+    port=db_port,
+    database=db_name,
+    user=db_user,
+    password=db_password
+)
+
+# Function to read Google Sheets and create a PostgreSQL table for each sheet
+def read_google_sheets(sheet_id):
+    cursor = conn.cursor()
+
     # Set the credentials and scope for accessing Google Sheets API
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     credentials = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
@@ -20,59 +36,51 @@ def sheet():
 
     while True:
         try:
-            # Open the Google Spreadsheet by its title or URL
-            test = sheet_link
-            spreadsheet_id = test.split('/')[-2]
+            # Open the Google Spreadsheet by its ID
+            spreadsheet = client.open_by_key(sheet_id)
 
-            # Get the first worksheet from the spreadsheet
-            spreadsheet = client.open_by_key(spreadsheet_id)
-            worksheet = spreadsheet.get_worksheet(0)
+            for worksheet in spreadsheet.worksheets():
+                column_names = worksheet.row_values(1)
 
-            # Get all values in column N and corresponding row values
-            column_N = worksheet.col_values(18)  # Assuming column N is the 14th column
-            all_rows = worksheet.get_all_values()
+                # Remove any special characters from column names to make them valid for PostgreSQL
+                valid_column_names = [name.lower().replace(' ', '_').replace('-', '_') for name in column_names]
 
-            # Filter rows that contain "violation" in column N
-            filtered_rows = [row for row, value in zip(all_rows, column_N) if value.lower() == "violation"]
+                table_name = sheet_id
 
-            # Combine values of columns F and G into a single variable
-            combined_values = []
+                # Create the PostgreSQL table if it doesn't exist
+                create_table_query = f'CREATE TABLE IF NOT EXISTS "{table_name}" ('
 
-            # Print the filtered rows
-            for row in filtered_rows:
-                # print(row)
-                # Get the values of columns F and G
-                column_f = row[5]  # Column F (index 5) Title
-                column_g = row[6]  # Column G (index 6) Body
+                for column_name in valid_column_names:
+                    create_table_query += f'"{column_name}" VARCHAR,'
+                
+                create_table_query = create_table_query.rstrip(',') + ');'
 
-                combined_value = f"{column_f}. {column_g}"
-                print(column_g)
-                return column_g
-            
-                # combined_values.append(combined_value)
+                cursor.execute(create_table_query)
+                conn.commit()
 
-                # Print the combined values
-                # for value in combined_values:
-                #     print(value)
+                # Insert data from the worksheet into the PostgreSQL table
+                all_values = worksheet.get_all_values()
+                headers = all_values[0]  # Use original column names
+                insert_query = f'INSERT INTO "{table_name}" ({", ".join(valid_column_names)}) VALUES ({", ".join(["%s"] * len(valid_column_names))})'
 
-                # break
-
-            # Count the number of filtered rows
-            # row_count = len(filtered_rows)
-
-            # Print the count
-            # print("Number of rows displayed:", row_count)
+                for row in all_values[1:]:
+                    cursor.execute(insert_query, row)
+                    conn.commit()
 
             break
 
-        except SpreadsheetNotFound:
+        except gspread.exceptions.SpreadsheetNotFound:
             print("Spreadsheet not found!")
-            break  # Break the loop if the spreadsheet is not found (optional)
+            break
 
-        except APIError as e:
-            # print(f"APIError occurred: {e}")
-            print(f"APIError occurred:")
-            # Add a delay before retrying (optional)
+        except gspread.exceptions.APIError as e:
+            print(f"APIError occurred: {e}")
             time.sleep(10)
 
-# sheet()
+    conn.close()
+
+# Retrieve the spreadsheet ID from environment variables
+spreadsheet_id = os.getenv('SPREADSHEET_ID')
+
+# Call the function to read the Google Sheets and insert data into PostgreSQL tables
+read_google_sheets(spreadsheet_id)

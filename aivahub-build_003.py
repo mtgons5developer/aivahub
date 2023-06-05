@@ -1,6 +1,6 @@
 import os
-import json
 import psycopg2
+import traceback
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -28,40 +28,18 @@ conn = psycopg2.connect(
     password=db_password
 )
 
-def create_table():
-    # Create a cursor object to execute SQL queries
-    cur = conn.cursor()
-
-    # Get the spreadsheet name
-    spreadsheet_name = sheet()
-
-    # Remove any special characters from the spreadsheet name to use as a table name
-    table_name = "".join(c for c in spreadsheet_name if c.isalnum())
-
-    # Create the table if it doesn't exist
-    create_table_query = f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
-        id SERIAL PRIMARY KEY,
-        title TEXT,
-        body TEXT,
-        gpt_status TEXT,
-        gpt_reason TEXT
-    );
-    """
-    cur.execute(create_table_query)
-    conn.commit()
-
-    # Close the cursor
-    cur.close()
-
 def openAI():
     #Build_002 Anaylze Title and Body only
     try:
+
+        from langchain.prompts.few_shot import FewShotPromptTemplate
+        from langchain.prompts.prompt import PromptTemplate
+        
         # Create a cursor object to execute SQL queries
         cur = conn.cursor()
-
+        
         # Fetch the first row from the table
-        cur.execute(f"SELECT title, body, gpt_status, gpt_reason FROM {table_name} LIMIT 1")
+        cur.execute("SELECT title, body, gpt_status, gpt_reason FROM review_data_admin LIMIT 1")
         row = cur.fetchone()
 
         if row:
@@ -103,20 +81,22 @@ def openAI():
             answer = llm_chain.run(review)
 
             print(f"Review: {review}\nStatus: {answer.strip()}")
-
+    
         else:
             print("No rows found in the table.")
-
+        
         # Close the cursor
         cur.close()
 
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
+        traceback.print_exc()
 
     finally:
         # Close the connection
         if conn is not None:
             conn.close()
 
-create_table()
+review = sheet()
+# create()
 openAI()
