@@ -34,10 +34,22 @@ def read_google_sheets(sheet_id):
     # Authorize the credentials and create a client
     client = gspread.authorize(credentials)
 
+    # Create a file to store the processed sheet_ids
+    output_file_path = "sheets_processed.txt"
+    processed_sheets = set()
+
+    if os.path.exists(output_file_path):
+        with open(output_file_path, "r") as output_file:
+            processed_sheets = set(output_file.read().splitlines())
+
     while True:
         try:
             # Open the Google Spreadsheet by its ID
             spreadsheet = client.open_by_key(sheet_id)
+
+            # Check if the sheet_id has been processed before
+            if sheet_id in processed_sheets:
+                break
 
             for worksheet in spreadsheet.worksheets():
                 column_names = worksheet.row_values(1)
@@ -66,6 +78,13 @@ def read_google_sheets(sheet_id):
                 for row in all_values[1:]:
                     cursor.execute(insert_query, row)
                     conn.commit()
+
+            # Add the sheet_id to the set of processed sheets
+            processed_sheets.add(sheet_id)
+
+            # Write the processed sheets back to the output file
+            with open(output_file_path, "w") as output_file:
+                output_file.write('\n'.join(processed_sheets))
 
             break
 

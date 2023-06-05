@@ -11,3 +11,4 @@ pgpass.conf
 CSV/
 mylog.txt
 test
+sheets_processed.txt

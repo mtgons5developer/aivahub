@@ -4,7 +4,7 @@ import traceback
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
-from g_sheet import sheet
+
 from create_env import create
 from dotenv import load_dotenv
 
@@ -29,9 +29,8 @@ conn = psycopg2.connect(
 )
 
 def openAI():
-    #Build_002 Anaylze Title and Body only
+    # Build_002 Anaylze Title and Body only
     try:
-
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
         
@@ -39,18 +38,18 @@ def openAI():
         cur = conn.cursor()
         
         # Fetch the first row from the table
-        cur.execute("SELECT title, body, gpt_status, gpt_reason FROM review_data_admin LIMIT 1")
+        sheet_id = '1hH4TZP1g9ZoYTYUo8TZARlSeXqKqLGvSAh5CNShvxVs'
+        table_name = sheet_id.replace('-', '_')  # Generate a valid table name from the sheet ID
+
+        cur.execute(f"SELECT title, body, gpt_status, gpt_reason FROM {table_name} LIMIT 1")
         row = cur.fetchone()
 
         if row:
             # Combine the title and body columns with a comma separator
             review = f"{row[0]}, {row[1]}"
-            # status = row[2]
-            # reason = row[3]
 
             # Create a dictionary with the extracted values
-            result = {'review': review}#, 'status': status}#, 'reason': reason}
-            # Convert the dictionary to a list
+            result = {'review': review}
             examples = [result]
 
             example_prompt = PromptTemplate(input_variables=["review"],
@@ -74,7 +73,6 @@ def openAI():
                 input_variables=["input"]
             )
 
-            # completion_llm = OpenAI(temperature=0.0)
             chat_llm = ChatOpenAI(temperature=0.8)
             llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
@@ -97,6 +95,6 @@ def openAI():
         if conn is not None:
             conn.close()
 
-review = sheet()
+# review = sheet()
 # create()
 openAI()

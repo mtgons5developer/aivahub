@@ -60,10 +60,14 @@ def read_csv_files(directory):
             # Create the PostgreSQL table if it doesn't exist
             create_table_query = f'CREATE TABLE IF NOT EXISTS "{table_name}" ('
 
-            for i in range(column_count):
-                create_table_query += f'column{i+1} VARCHAR,'
-            
-            create_table_query = create_table_query.rstrip(',') + ');'
+            with open(file_path, 'r') as csv_file:
+                csv_reader = csv.reader(csv_file)
+                header_row = next(csv_reader)  # Get the header row
+
+                for i, column_name in enumerate(header_row):
+                    create_table_query += f'"{column_name}" VARCHAR, '
+
+            create_table_query = create_table_query.rstrip(', ') + ');'
 
             cursor.execute(create_table_query)
             conn.commit()
@@ -81,14 +85,16 @@ def read_csv_files(directory):
 
             # Add the file name to the set of processed files
             processed_files.add(file_name)
+            print(file_name, " has been processed!")
 
         # Write the processed files back to the output file
         with open(output_file_path, "w") as output_file:
             output_file.write('\n'.join(processed_files))
 
         # Sleep for 1 minute before checking for new files again
-        # time.sleep(60)
-        quit()
+        time.sleep(30)
+        print("Checking for new files....")
+        # quit()
 
     conn.close()
 
