@@ -1,0 +1,6 @@
+dotenv
+psycopg2
+langchain
+gspread
+oauth2client
+openai

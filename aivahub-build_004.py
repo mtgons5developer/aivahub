@@ -42,7 +42,7 @@ def openAI():
         sheet_id = '1hH4TZP1g9ZoYTYUo8TZARlSeXqKqLGvSAh5CNShvxVs'
         table_name = sheet_id.replace('-', '_')  # Generate a valid table name from the sheet ID
         
-        cur.execute(f'SELECT title, body, gpt_status, gpt_reason FROM "{table_name}" LIMIT 1')        
+        cur.execute(f'SELECT title, body, gpt_status, gpt_reason FROM "{table_name}" LIMIT 1')
         row = cur.fetchone()
 
         if row:
