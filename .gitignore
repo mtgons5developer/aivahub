@@ -12,3 +12,10 @@ CSV/
 mylog.txt
 test
 sheets_processed.txt
+.firebaserc
+aivahub-codebase/
+firebase.json
+functions/
+google-services.json
+myenv/
+schooapp2022.json
