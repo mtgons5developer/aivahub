@@ -44,3 +44,12 @@ subscription_name = "aivahub-topic-sub"
 
 # Start listening for events
 listen_for_events(project_id, subscription_name)
+
+# psql "sslmode=verify-ca sslrootcert=~/.ssh/sc.pem sslcert=~/.ssh/cc.pem sslkey=~/.ssh/ck.pem hostaddr=35.225.7.100 port=5432 user=postgres dbname=postgres"
+# psql "sslmode=verify-ca sslrootcert=~/.ssh/server-ca.pem sslcert=~/.ssh/client-cert.pem sslkey=~/.ssh/psql-key.pem hostaddr=35.193.26.119 port=5432 user=postgres dbname=postgres"
+
+# psql sslmode=verify-ca sslkey=client-key.pem hostaddr=35.193.26.119 port=5432 user=postgres dbname=postgres
+# psql -h /cloudsql/review-tool-388312:us-central1:blackwidow -U postgres -W
+# psql -h /cloudsql/review-tool-388312:us-central1-b:blackwidow -U postgres -W
+
+./cloud_sql_proxy -instances=schooapp2022:schooapp2022:us-central1:test-pqsl=tcp:5432

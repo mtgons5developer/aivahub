@@ -19,3 +19,5 @@ functions/
 google-services.json
 myenv/
 schooapp2022.json
+cloud-sql-proxy
+psql-key.pem
