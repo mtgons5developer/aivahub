@@ -52,4 +52,7 @@ listen_for_events(project_id, subscription_name)
 # psql -h /cloudsql/review-tool-388312:us-central1:blackwidow -U postgres -W
 # psql -h /cloudsql/review-tool-388312:us-central1-b:blackwidow -U postgres -W
 
-./cloud_sql_proxy -instances=schooapp2022:schooapp2022:us-central1:test-pqsl=tcp:5432
+# cloud_sql_proxy -instances=schooapp2022:us-central1:test-pqsl=tcp:5432
+# gcloud sql instances describe schooapp2022:us-central1:test-psql
+
+# postgresql://postgres:postgres@35.193.26.119:5432/postgres
