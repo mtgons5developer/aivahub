@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.firebaserc
+__pycache__/
+aivahub-codebase/
+cloud-sql-proxy
+credentials.json
+csv/
+firebase.json
+functions/
+google-services.json
+myenv/
+mylog.txt
+psql-key.pem
+schooapp2022.json
+sheets_processed.txt
