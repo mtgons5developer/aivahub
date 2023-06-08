@@ -1,4 +1,3 @@
-libpq-dev 
 python3-dev
 dotenv
 psycopg2
