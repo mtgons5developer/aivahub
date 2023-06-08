@@ -1,3 +1,4 @@
+
 import os
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
@@ -9,7 +10,7 @@ load_dotenv()
 db_host = os.getenv('HOST')
 db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
-db_user = os.getenv('USER')
+db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
 
 # Connect to the PostgreSQL database

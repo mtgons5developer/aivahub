@@ -5,12 +5,11 @@ import traceback
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
-
+from dotenv import load_dotenv
 from google.cloud import storage
 from langchain.prompts.few_shot import FewShotPromptTemplate
 from langchain.prompts.prompt import PromptTemplate
-
-from dotenv import load_dotenv
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 load_dotenv()
 
@@ -21,7 +20,7 @@ os.environ['OPENAI_API_KEY'] = openai_api_key
 db_host = os.getenv('HOST')
 db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
-db_user = os.getenv('USER')
+db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
 
 # Connect to the PostgreSQL database
@@ -33,20 +32,35 @@ conn = psycopg2.connect(
     password=db_password
 )
 
-def read_file_from_gcs(bucket_name, file_name):
-    # Instantiate the client
-    client = storage.Client()
 
-    # Retrieve the bucket and file
-    bucket = client.bucket(bucket_name)
-    blob = bucket.blob(file_name)
+def listener():
+    # Set the isolation level to autocommit
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 
-    # Download the file's content as a string
-    content = blob.download_as_text()
+    # Create a new cursor
+    cur = conn.cursor()
 
-    return content
+    # Define a function to handle the trigger event
+    def notify_csv_upload_trigger():
+        # Add your logic here to handle the trigger event
+        print("Trigger event received!")
 
-try:
+    # Enable listening for notifications
+    cur.execute("LISTEN csv_upload_channel")
+
+    # Loop to listen for notifications
+    while True:
+        conn.poll()
+        while conn.notifies:
+            notify = conn.notifies.pop(0)
+            print("Received notification on channel:", notify.channel)
+            # Perform actions based on the received notification
+            if notify.channel == 'csv_upload_channel':
+                notify_csv_upload_trigger()
+
+        # Add any other processing or wait mechanism as needed
+
+def process_csv():
 
     # Provide the name of your bucket and the file you want to read
     bucket_name = "schooapp2022.appspot.com"
@@ -118,6 +132,23 @@ try:
         conn.commit()
         print(f"Review: {review}\nStatus: {answer.strip()}")
 
+def read_file_from_gcs(bucket_name, file_name):
+    # Instantiate the client
+    client = storage.Client()
+
+    # Retrieve the bucket and file
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(file_name)
+
+    # Download the file's content as a string
+    content = blob.download_as_text()
+
+    return content
+
+try:
+    listener()
+    process_csv()
+
 except psycopg2.Error as e:
     print("Error connecting to PostgreSQL:", e)
     traceback.print_exc()
@@ -126,4 +157,3 @@ finally:
     # Close the connection
     if conn is not None:
         conn.close()
-        cursor.close()
