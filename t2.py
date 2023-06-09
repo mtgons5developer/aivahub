@@ -18,7 +18,7 @@ db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
-db_connection_name = 'review-tool-388312:us-central1:blackwidow'
+db_connection_name = 'blackwidow:us-central1-b:blackwidow'
 
 print(db_host)
 print(db_port)
