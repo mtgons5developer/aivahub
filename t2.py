@@ -20,6 +20,12 @@ db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
 db_connection_name = 'review-tool-388312:us-central1:blackwidow'
 
+print(db_host)
+print(db_port)
+print(db_name)
+print(db_user)
+print(db_password)
+
 # Connect to the Cloud SQL PostgreSQL database
 try:
     conn = psycopg2.connect(
