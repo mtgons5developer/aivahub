@@ -61,5 +61,10 @@ def post_data():
     else:
         return 'Method not allowed', 405
 
+@app.route('/')
+def index():
+    return 'Hello, world!'
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8443)
