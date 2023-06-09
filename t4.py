@@ -4,6 +4,7 @@ from celery import Celery
 import psycopg2
 from psycopg2 import Error
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from google.cloud import storage
 
 # Create Flask app
 app = Flask(__name__)
@@ -27,12 +28,6 @@ db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
 db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
-
-print(db_host)
-print(db_port)
-print(db_name)
-print(db_user)
-print(db_password)
 
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
@@ -163,11 +158,63 @@ def get_table_columns(table_name):
         return jsonify({'table_name': table_name, 'column_count': count})
     except Exception as e:
         return str(e), 500
-    
+
 @app.route('/')
 def index():
     return 'Hello, world!'
 
+
+file_status = {}
+
+# @app.route('/upload-to-gcs', methods=['POST'])
+# def upload_to_gcs():
+#     try:
+#         # Generate a unique identifier for the uploaded file
+#         file_id = str(uuid.uuid4())
+        
+#         # Retrieve the file from the request
+#         file = request.files['file']
+        
+#         # Perform the necessary operations to upload the file to GCS
+#         # ...
+        
+#         # Store the status of the uploaded file
+#         file_status[file_id] = 'uploaded'
+        
+#         # Return the file ID to the frontend
+#         return jsonify({'file_id': file_id})
+    
+#     except Exception as e:
+#         # Return an error response if there was an error during the upload
+#         return jsonify({'error': str(e)}), 500
+
+@app.route('/upload-to-gcs', methods=['POST'])
+def upload_to_gcs():
+    file = request.files.get('file')
+    if file:
+        # Upload the file to your GCS bucket
+        bucket_name = "schooapp2022.appspot.com"
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.blob(file.filename)
+        blob.upload_from_file(file)
+
+        return 'File uploaded successfully'
+
+    return 'No file provided', 400
+
+@app.route('/check-upload-status/<file_id>')
+def check_upload_status(file_id):
+    # Check the status of the uploaded file based on the file ID
+    status = file_status.get(file_id)
+    
+    if status:
+        # Return the status as a response to the frontend
+        return jsonify({'status': status})
+    else:
+        # Return an error response if the file ID is not found
+        return jsonify({'error': 'File ID not found'}), 404
+    
 @celery.task
 def perform_task(field1, field2):
     # Do something with the data asynchronously
