@@ -38,7 +38,7 @@ try:
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     print('Connected to Cloud SQL PostgreSQL database')
 except Error as e:
-    print('Error connecting to Cloud SQL PostgreSQL database:', e)
+    raise Exception('Error connecting to Cloud SQL PostgreSQL database: ' + str(e))
 
 # Define the route for the HTTPS POST request
 @app.route('/post-data', methods=['GET', 'POST'])  # Allow both GET and POST methods
@@ -55,7 +55,7 @@ def post_data():
             # Do something with the data
             # ...
 
-            return 'Data received successfully'
+            return {'message': 'Data received successfully'}, 200
         except Exception as e:
             return str(e), 500
     else:
