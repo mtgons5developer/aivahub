@@ -18,7 +18,7 @@ db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
-db_connection_name = 'blackwidow:us-central1-b:blackwidow'
+db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
 
 print(db_host)
 print(db_port)
@@ -31,7 +31,8 @@ try:
     conn = psycopg2.connect(
         user=db_user,
         password=db_password,
-        host='/cloudsql/{}:{}'.format(db_connection_name, db_port),
+        host=db_host, 
+        port=db_port,
         database=db_name
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
