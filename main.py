@@ -1,7 +1,7 @@
 import os
 import csv
 import psycopg2
-import traceback
+import requests
 from flask import Flask, request
 
 from langchain import OpenAI, LLMChain
@@ -32,6 +32,11 @@ conn = psycopg2.connect(
     user=db_user,
     password=db_password
 )
+
+# Disable SSL certificate verification warning
+requests.packages.urllib3.disable_warnings()
+# Send HTTP request without certificate verification
+response = requests.get('https://example.com', verify=False)
 
 app = Flask(__name__)
 
