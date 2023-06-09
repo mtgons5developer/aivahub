@@ -24,3 +24,4 @@ psql-key.pem
 phoenix.crt
 review-tool-388312-802c6fde205d.json
 templates/
+dump.rdb

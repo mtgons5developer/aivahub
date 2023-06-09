@@ -90,6 +90,7 @@ def get_my_table_data():
             result = {
                 'column1': row[0],
                 'column2': row[1],
+                'column3': row[2],
                 # Add more columns as needed
             }
             results.append(result)
@@ -104,7 +105,7 @@ def get_my_table_data():
         return str(e), 500
         
 @app.route('/api/<table_name>', methods=['GET'])
-def get_specific_table_data(table_name):
+def get_table_data(table_name):
     try:
         # Connect to the database
         conn = connect_to_database()
