@@ -109,5 +109,9 @@ def notify_csv_upload():
     print("Trigger event received!")
     return "Notification received"
 
+# if __name__ == '__main__':
+#     app.run(ssl_context='adhoc')
+
 if __name__ == '__main__':
-    app.run(ssl_context='adhoc')
+    app.run(ssl_context=('/home/almedae/.ssh/review-tool-388312-802c6fde205d.json', '/home/almedae/.ssh/phoenix.crt'))
+
