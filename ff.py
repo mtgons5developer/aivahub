@@ -14,6 +14,7 @@ os.environ['OPENAI_API_KEY'] = openai_api_key
 db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
+# cloud_sql_connection_name = 'review-tool-388312:us-central1:blackwidow'
 cloud_sql_connection_name = 'review-tool-388312:us-central1:blackwidow'
 
 app = Flask(__name__)
