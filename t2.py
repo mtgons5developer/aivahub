@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask, request
 import psycopg2
 from psycopg2 import Error
@@ -7,14 +8,18 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 # Create Flask app
 app = Flask(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Define the Cloud SQL PostgreSQL connection details
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # Retrieve the PostgreSQL connection details from environment variables
-db_host = os.getenv('HOST')
-db_port = os.getenv('DB_PORT')
+db_host = os.getenv('HOST', 'localhost')
+db_port = os.getenv('DB_PORT', '5432')
 db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
@@ -29,9 +34,9 @@ try:
         database=db_name
     )
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-    print('Connected to Cloud SQL PostgreSQL database')
+    logger.info('Connected to Cloud SQL PostgreSQL database')
 except Error as e:
-    print('Error connecting to Cloud SQL PostgreSQL database:', e)
+    logger.error('Error connecting to Cloud SQL PostgreSQL database: %s', e)
 
 # Define the route for the HTTPS POST request
 @app.route('/post-data', methods=['POST'])
@@ -49,6 +54,7 @@ def post_data():
 
         return 'Data received successfully'
     except Exception as e:
+        logger.error('Error processing POST request: %s', e)
         return str(e), 500
 
 if __name__ == '__main__':
