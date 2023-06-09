@@ -21,3 +21,5 @@ myenv/
 schooapp2022.json
 cloud-sql-proxy
 psql-key.pem
+phoenix.crt
+review-tool-388312-802c6fde205d.json
