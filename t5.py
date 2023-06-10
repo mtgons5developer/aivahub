@@ -62,7 +62,8 @@ def upload_to_gcs():
 
         return 'File uploaded successfully'
 
-    return 'No file provided', 400
+    # Return the error message in JSON format
+    return jsonify({'error': 'No file provided'}), 400
 
 # Rest of your code...
 
