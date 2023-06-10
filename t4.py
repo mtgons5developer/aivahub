@@ -1,20 +1,11 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from celery import Celery
 import psycopg2
 from psycopg2 import Error
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from google.cloud import storage
-
-# Create Flask app
-app = Flask(__name__)
-
-# Configure Celery
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
-
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-celery.conf.update(app.config)
+# from flask_sqlalchemy import SQLAlchemy
 
 # Define the Cloud SQL PostgreSQL connection details
 from dotenv import load_dotenv
@@ -28,6 +19,17 @@ db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
 db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
+
+# Create Flask app
+app = Flask(__name__)
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://{db_user}:{db_password}@{db_host}/{db_name}' 
+# db = SQLAlchemy(app)
+# Configure Celery
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
 
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
@@ -214,7 +216,31 @@ def check_upload_status(file_id):
     else:
         # Return an error response if the file ID is not found
         return jsonify({'error': 'File ID not found'}), 404
-    
+
+# class ProcessedCsv(db.Model):
+#     id = db.Column(db.Integer, primary_key=True)
+#     fileId = db.Column(db.String(100), unique=True)
+#     csvFile = db.Column(db.String(100))
+
+# @app.route('/status/<id>', methods=['GET'])
+# def get_status(id):
+#     # Query the database to check if there's a matching row with the provided ID
+#     result = ProcessedCsv.query.filter_by(fileId=id).first()
+
+#     if result:
+#         if result.csvFile:
+#             # If a CSV file exists in the 'csvFile' column, prepare and return the CSV file as the response
+#             headers = {'Content-Type': 'text/csv'}
+#             csv_response = make_response(result.csvFile)
+#             csv_response.headers = headers
+#             return csv_response
+#         else:
+#             # If the status is 'Processed', but there's no CSV file, return a JSON response indicating such
+#             return jsonify({'status': 'Processed (No CSV File)'})
+#     else:
+#         # If no matching row is found, return a JSON response indicating the status is 'Not Processed'
+#         return jsonify({'status': 'Not Processed'})
+        
 @celery.task
 def perform_task(field1, field2):
     # Do something with the data asynchronously
