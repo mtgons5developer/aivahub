@@ -69,23 +69,28 @@ def upload_to_gcs():
         bucket_name = "schooapp2022.appspot.com"
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(bucket_name)
-        filename = file.filename
+        original_filename = file.filename
+        file_name, file_extension = os.path.splitext(original_filename)
 
         # Check if the file already exists in the bucket
-        if bucket.blob(filename).exists():
-            # Generate a new filename with a counter
-            counter = 1
-            while bucket.blob(f"{filename}-{counter}").exists():
-                counter += 1
-            filename = f"{filename}-{counter}"
+        counter = 1
+        new_filename = f"{file_name}{file_extension}"
+        while bucket.blob(new_filename).exists():
+            new_filename = f"{file_name}-{counter}{file_extension}"
+            counter += 1
 
-        blob = bucket.blob(filename)
+        # Reset the file stream position to the beginning again
+        file.seek(0)
+
+        blob = bucket.blob(new_filename)
         blob.upload_from_file(file)
 
         return jsonify({'message': 'File uploaded successfully'})
 
     # Return the error message in JSON format
     return jsonify({'error': 'No file provided'}), 400
+
+
 
 # Rest of your code...
 
