@@ -53,6 +53,11 @@ def connect_to_database():
 def upload_to_gcs():
     file = request.files.get('file')
     if file:
+        # Read the file and check if it's empty
+        file_data = file.read()
+        if not file_data:
+            return jsonify({'error': 'Empty file provided'}), 400
+
         # Upload the file to your GCS bucket
         bucket_name = "schooapp2022.appspot.com"
         storage_client = storage.Client()
