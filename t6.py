@@ -1,6 +1,10 @@
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import (
+    JWTManager, jwt_required, create_access_token,
+    get_jwt_identity
+)
 from celery import Celery
 import psycopg2
 from psycopg2 import Error
@@ -23,6 +27,8 @@ db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
 # Create Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # Change this to your own secret key
+jwt = JWTManager(app)
 
 # Configure Celery
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
@@ -49,37 +55,31 @@ def connect_to_database():
 
 # Rest of your code...
 
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.json.get('username')
+    password = request.json.get('password')
+
+    # Add your authentication logic here (e.g., validate username and password)
+    # If authentication is successful, generate an access token
+    if username == 'your-username' and password == 'your-password':
+        access_token = create_access_token(identity=username)
+        return jsonify(access_token=access_token), 200
+
+    return jsonify({'error': 'Invalid username or password'}), 401
+
 @app.route('/upload-to-gcs', methods=['POST'])
+@jwt_required()  # Protect this route with JWT authentication
 def upload_to_gcs():
     file = request.files.get('file')
-
     if file:
-        # Check if the file is a CSV file
-        if not file.filename.endswith('.csv'):
-            return jsonify({'error': 'File type mismatch, CSV files only.'}), 400
-
-        # Reset the file stream position to the beginning
-        file.seek(0)
-
-        # Check if the file is empty
-        if file.seek(0, os.SEEK_END) == 0:
-            return jsonify({'error': 'Empty file provided'}), 400
+        # Perform token-based authorization checks if required
 
         # Upload the file to your GCS bucket
         bucket_name = "schooapp2022.appspot.com"
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(bucket_name)
-        filename = file.filename
-
-        # Check if the file already exists in the bucket
-        if bucket.blob(filename).exists():
-            # Generate a new filename with a counter
-            counter = 1
-            while bucket.blob(f"{filename}-{counter}").exists():
-                counter += 1
-            filename = f"{filename}-{counter}"
-
-        blob = bucket.blob(filename)
+        blob = bucket.blob(file.filename)
         blob.upload_from_file(file)
 
         return jsonify({'message': 'File uploaded successfully'})
