@@ -52,7 +52,12 @@ def connect_to_database():
 @app.route('/upload-to-gcs', methods=['POST'])
 def upload_to_gcs():
     file = request.files.get('file')
+
     if file:
+        # Check if the file is a CSV file
+        if not file.filename.endswith('.csv'):
+            return jsonify({'error': 'File type mismatch, CSV files only.'}), 400
+
         # Reset the file stream position to the beginning
         file.seek(0)
 
@@ -60,7 +65,17 @@ def upload_to_gcs():
         bucket_name = "schooapp2022.appspot.com"
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(bucket_name)
-        blob = bucket.blob(file.filename)
+        filename = file.filename
+
+        # Check if the file already exists in the bucket
+        if bucket.blob(filename).exists():
+            # Generate a new filename with a counter
+            counter = 1
+            while bucket.blob(f"{filename}-{counter}").exists():
+                counter += 1
+            filename = f"{filename}-{counter}"
+
+        blob = bucket.blob(filename)
         blob.upload_from_file(file)
 
         return jsonify({'message': 'File uploaded successfully'})
