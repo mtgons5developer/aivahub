@@ -60,7 +60,7 @@ def upload_to_gcs():
         blob = bucket.blob(file.filename)
         blob.upload_from_file(file)
 
-        return 'File uploaded successfully'
+        return jsonify({'message': 'File uploaded successfully'})
 
     # Return the error message in JSON format
     return jsonify({'error': 'No file provided'}), 400
