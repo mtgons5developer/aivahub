@@ -1,5 +1,6 @@
 import os
-from flask import Flask, request, jsonify
+import uuid
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from celery import Celery
 import psycopg2
@@ -50,43 +51,6 @@ def connect_to_database():
 # Connect to the database
 conn = connect_to_database()
 
-# Define a function to insert a row with file details into the database
-def insert_file_details(filename):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO csv_upload (filename) VALUES (%s) RETURNING id",
-            (filename,)
-        )
-        row_id = cursor.fetchone()[0]
-        conn.commit()
-        print('File details inserted successfully')
-        return row_id
-    except Error as e:
-        print('Error inserting file details:', e)
-        return None
-
-# Define a function to retrieve file details from the database by UUID
-def get_file_details(file_id):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM csv_upload WHERE id = %s",
-            (file_id,)
-        )
-        row = cursor.fetchone()
-        if row:
-            file_id, filename = row
-            return {
-                'id': file_id,
-                'filename': filename
-            }
-        else:
-            return None
-    except Error as e:
-        return jsonify({'error': f'Error retrieving file details: {e}'})
-
-
 @app.route('/upload-to-gcs', methods=['POST'])
 def upload_to_gcs():
     file = request.files.get('file')
@@ -134,15 +98,69 @@ def upload_to_gcs():
     # Return the error message in JSON format
     return jsonify({'error': 'No file provided'}), 400
 
-@app.route('/status/<int:file_id>', methods=['GET'])
+# Define a function to insert a row with file details into the database
+def insert_file_details(filename, uuid):
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO files (filename, uuid) VALUES (%s, %s)",
+            (filename, uuid)
+        )
+        conn.commit()
+        print('File details inserted successfully')
+    except Error as e:
+        print('Error inserting file details:', e)
+
+# Define a function to retrieve file details from the database by UUID
+def get_file_details(uuid):
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM files WHERE uuid = %s",
+            (uuid,)
+        )
+        row = cursor.fetchone()
+        if row:
+            file_id, filename, uuid = row
+            return {
+                'id': file_id,
+                'filename': filename,
+                'uuid': uuid
+            }
+        else:
+            return None
+    except Error as e:
+        print('Error retrieving file details:', e)
+
+# Define a function to insert a row with file details into the database
+def get_file_details(file_uuid):
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, status FROM csv_upload WHERE id = %s",
+            (str(file_uuid),)  # Convert the UUID to a string
+        )
+        row = cursor.fetchone()
+        if row:
+            file_id, status = row
+            return {'id': str(file_id), 'status': status}
+        else:
+            return {'error': 'File not found'}
+    except Error as e:
+        return {'error': f'Error retrieving file details: {e}'}
+
+            
+@app.route('/status/<uuid:file_id>', methods=['GET'])
 def get_status(file_id):
     # Retrieve file details from the database
     file_details = get_file_details(file_id)
 
-    if file_details:
-        return jsonify(file_details)
+    if 'error' in file_details:
+        return jsonify(file_details), 404
     else:
-        return jsonify({'error': 'File not found'}), 404
+        return jsonify(file_details)
+
+
 
 
 if __name__ == '__main__':
