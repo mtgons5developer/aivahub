@@ -1,5 +1,5 @@
 import os
-import uuid
+import csv
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from celery import Celery
@@ -91,7 +91,9 @@ def upload_to_gcs():
         row_id = insert_file_details(new_filename)
 
         if row_id is not None:
-            return jsonify({'message': 'File uploaded successfully', 'id': row_id})
+            # Call read_csv_file to process the uploaded file
+            table_name = read_csv_file(bucket_name, new_filename, row_id)
+            return jsonify({'message': 'File uploaded successfully', 'id': row_id, 'table_name': table_name})
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
 
@@ -99,24 +101,26 @@ def upload_to_gcs():
     return jsonify({'error': 'No file provided'}), 400
 
 # Define a function to insert a row with file details into the database
-def insert_file_details(filename, uuid):
+def insert_file_details(filename):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO files (filename, uuid) VALUES (%s, %s)",
-            (filename, uuid)
+            "INSERT INTO csv_upload (filename, status) VALUES (%s, %s) RETURNING id",
+            (filename, "Processing")
         )
+        row_id = cursor.fetchone()[0]
         conn.commit()
         print('File details inserted successfully')
+        return row_id
     except Error as e:
         print('Error inserting file details:', e)
 
-# Define a function to retrieve file details from the database by UUID
+# Define a function to retrieve file details from the database by ID
 def get_file_details(uuid):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM files WHERE uuid = %s",
+            "SELECT * FROM csv_upload WHERE uuid = %s",
             (uuid,)
         )
         row = cursor.fetchone()
@@ -132,35 +136,69 @@ def get_file_details(uuid):
     except Error as e:
         print('Error retrieving file details:', e)
 
-# Define a function to insert a row with file details into the database
-def get_file_details(file_uuid):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, status FROM csv_upload WHERE id = %s",
-            (str(file_uuid),)  # Convert the UUID to a string
-        )
-        row = cursor.fetchone()
-        if row:
-            file_id, status = row
-            return {'id': str(file_id), 'status': status}
-        else:
-            return {'error': 'File not found'}
-    except Error as e:
-        return {'error': f'Error retrieving file details: {e}'}
-
-            
-@app.route('/status/<uuid:file_id>', methods=['GET'])
+@app.route('/status/<int:file_id>', methods=['GET'])
 def get_status(file_id):
     # Retrieve file details from the database
     file_details = get_file_details(file_id)
 
-    if 'error' in file_details:
-        return jsonify(file_details), 404
-    else:
+    if file_details is not None:
         return jsonify(file_details)
+    else:
+        return jsonify({'error': 'File not found'}), 404
 
+def detect_column_count(file_path):
+    with open(file_path, 'r') as file:
+        reader = csv.reader(file)
+        first_row = next(reader)
+        return len(first_row)
 
+# Function to read a CSV file from a GCS bucket and create a PostgreSQL table
+def read_csv_file(bucket_name, new_filename, row_id):
+    # Download the file from the GCS bucket
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(new_filename)
+
+    # Create a temporary file path to download the file
+    temp_file_path = f"/tmp/{new_filename}"
+
+    # Download the file to the temporary file path
+    blob.download_to_filename(temp_file_path)
+
+    # Detect the number of columns in the CSV file
+    column_count = detect_column_count(temp_file_path)
+
+    # Create the PostgreSQL table if it doesn't exist
+    create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" ('
+
+    with open(temp_file_path, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        header_row = next(csv_reader)  # Get the header row
+
+        for i, column_name in enumerate(header_row):
+            create_table_query += f'"{column_name}" VARCHAR, '
+
+    create_table_query = create_table_query.rstrip(', ') + ');'
+
+    cursor = conn.cursor()
+    cursor.execute(create_table_query)
+    conn.commit()
+
+    # Insert data from the CSV file into the PostgreSQL table
+    with open(temp_file_path, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        next(csv_reader)  # Skip the header row
+
+        insert_query = f'INSERT INTO "{row_id}" VALUES ({", ".join(["%s"] * column_count)})'
+
+        for row in csv_reader:
+            cursor.execute(insert_query, row)
+            conn.commit()
+
+    # Clean up the temporary file
+    os.remove(temp_file_path)
+
+    return row_id
 
 
 if __name__ == '__main__':
