@@ -123,20 +123,21 @@ def upload_to_gcs():
         blob.upload_from_file(file)
 
         # Insert file details into the database and get the row ID
-        row_id = insert_file_details(new_filename)
+        uuid = insert_file_details(new_filename)
 
-        if row_id is not None:
+        if uuid is not None:
             # Call read_csv_file to process the uploaded file
-            table_name = process_csv_and_openAI(bucket_name, new_filename, row_id)
-            # response_data = {'message': 'File uploaded successfully', 'id': row_id, 'table_name': table_name}
+            table_name = process_csv_and_openAI(bucket_name, new_filename, uuid)
+            response_data = {'message': 'File uploaded successfully', 'id': uuid, 'table_name': table_name}
             print('File uploaded successfully')
-            # response = jsonify(response_data)
-            return table_name
+            return jsonify(response_data)
+            # return table_name
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
 
     # Return the error message in JSON format
-    return jsonify({'error': 'No file provided'}), 400
+    # return jsonify({'error': 'No file provided'}), 400
+    # return table_name
 
 # Define a function to insert a row with file details into the database
 def insert_file_details(filename):
@@ -155,7 +156,7 @@ def insert_file_details(filename):
             'id': row_id
         }
         print('UUID:', row_id)
-        return jsonify(response)
+        return row_id
 
     except Error as e:
         print('Error inserting file details:', e)
@@ -198,7 +199,7 @@ def detect_column_count(file_path):
         return len(first_row)
 
 # Function to read a CSV file from a GCS bucket and create a PostgreSQL table
-def process_csv_and_openAI(bucket_name, new_filename, row_id):
+def process_csv_and_openAI(bucket_name, new_filename, uuid):
     try:
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
@@ -215,8 +216,10 @@ def process_csv_and_openAI(bucket_name, new_filename, row_id):
         blob.download_to_filename(temp_file_path)
 
         # Create the PostgreSQL table if it doesn't exist
-        create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" ("status" VARCHAR, "reason" VARCHAR);'
-
+        # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY,"status" VARCHAR, "reason" VARCHAR, "test" VARCHAR);'
+        
+        print(uuid)
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
@@ -237,9 +240,9 @@ def process_csv_and_openAI(bucket_name, new_filename, row_id):
             # Check if the title and body columns are found
             if title_column is None or body_column is None:
                 print("Title and/or body columns not found in the CSV file.")
-                return row_id
+                return uuid
 
-            insert_query = f'INSERT INTO "{row_id}" ("status", "reason") VALUES (%s, %s)'
+            insert_query = f'INSERT INTO "{uuid}" ("status", "reason") VALUES (%s, %s)'
 
             for row in csv_reader:
                 # Extract the title and body from the CSV row
@@ -279,29 +282,29 @@ def process_csv_and_openAI(bucket_name, new_filename, row_id):
                 else:
                     # Handle the situation when the answer doesn't have the expected format
                     review_text = answer.strip()
-                    status = ""
                     status = answer.strip()
                     reason = ""
 
-                cursor.execute(insert_query, (review_text, status))
-                cursor.execute(insert_query, (status, reason))
+                cursor.execute(insert_query, (reason, review_text, status))
                 conn.commit()
 
         # Clean up the temporary file
         os.remove(temp_file_path)
-
-        return row_id
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE csv_upload SET status = %s",
+            ("Completed",)
+        )
+        conn.commit()
+        # return uuid
 
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
 
-    finally:
-        # Close the connection
-        if conn is not None:
-            conn.close()
-
-    return row_id
-
+    # finally:
+    #     # Close the connection
+    #     if conn is not None:
+    #         conn.close()
 
 
 guidelines_prompt = '''
