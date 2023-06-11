@@ -133,8 +133,8 @@ def upload_to_gcs():
         if uuid is not None:
             # Call read_csv_file to process the uploaded file
             table_name = process_csv_and_openAI(bucket_name, new_filename, uuid)
-            response_data = {'message': 'File uploaded successfully', 'id': uuid}
-            print('File uploaded successfully')
+            response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+            print('File/GPT uploaded successfully')
             return jsonify(response_data)
             # return table_name
         else:
@@ -142,7 +142,7 @@ def upload_to_gcs():
 
     # Return the error message in JSON format
     # return jsonify({'error': 'No file provided'}), 400
-    # return table_name
+    return table_name
 
 # Define a function to insert a row with file details into the database
 def insert_file_details(filename):
@@ -162,7 +162,10 @@ def insert_file_details(filename):
             'id': row_id
         }
         print('UUID:', row_id)
-        return row_id
+        response_data = {'message': 'File Bucket Upload', 'id': row_id}
+        print('File Bucket Upload')
+
+        return jsonify(response_data)
 
     except Error as e:
         print('Error inserting file details:', e)
@@ -181,7 +184,7 @@ def get_file_details(uuid):
             return {
                 'id': file_id,
                 'filename': filename,
-                'uuid': uuid
+                'Status': uuid
             }
         else:
             return None
