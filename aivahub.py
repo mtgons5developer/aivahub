@@ -164,7 +164,7 @@ def openAI():
         from langchain.prompts.prompt import PromptTemplate
 
         # Read the CSV file
-        with open("csv-gpt.csv", "r") as file:
+        with open("csv.csv", "r") as file:
             csv_reader = csv.DictReader(file)
             title_column = None
             body_column = None
@@ -204,8 +204,7 @@ def openAI():
                     suffix="Review: '''{input}",
                     input_variables=["input"]
                 )
-
-                # chat_llm = ChatOpenAI(temperature=0.8)
+                
                 llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
                 answer = llm_chain.run(review)

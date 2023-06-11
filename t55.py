@@ -264,13 +264,9 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     examples=examples,
                     example_prompt=example_prompt,
                     prefix=guidelines_prompt,
-                    suffix="Review: '''{input}'''\nStatus:",
+                    suffix="Review: '''{input}",
                     input_variables=["input"]
                 )
-
-                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
-
-                answer = llm_chain.run(review)
 
                 llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
