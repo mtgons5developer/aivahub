@@ -2,7 +2,7 @@ import os
 import csv
 import sys
 import time
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response, url_for
 from flask_cors import CORS
 from celery import Celery
 import psycopg2
@@ -156,39 +156,43 @@ def upload_to_gcs():
     # return None
 # http://192.168.0.24:8443/process-csv/fbae93c6-7567-4247-9f8f-66acf14e2ad0
 
-# @app.route('/status/<string:file_id>', methods=['GET'])
-# def get_status(file_id):
-#     # Retrieve file details from the database
-#     file_details = get_file_details(file_id)
-#     print(file_details)
-#     if file_details is not None:
-#         return jsonify(file_details)
-#     else:
-#         return jsonify({'error': 'File not found'}), 404
-    
-@app.route('/process/<string:file_id>', methods=['GET'])
-def process_csv(file_id):
-    data = request.get_json()
+@app.route('/process/<string:ff_id>', methods=['GET'])
+def process_csv(ff_id):
 
-    # Retrieve the file details from the request
-    file_details = get_file_details(file_id)
-    # file_id = data.get(iid)
-    print(file_id)
-    quit()
-    bucket_name = "schooapp2022.appspot.com"
-    file_name = insert_file_details(file_id)
+    print(ff_id)  # Example: printing the value to the console
 
-    if file_name:
-        # Call process_csv_and_openAI to process the uploaded file
-        process_csv_and_openAI(bucket_name, file_name, uuid)
-        # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-        print('File/GPT uploaded successfully')
-        process_csv(uuid)
-        # return jsonify(response_data)
+    file_details = get_file_details(ff_id)
+    print(file_details)
 
-        return jsonify({'File/GPT uploaded successfully:': uuid}), 200
+    if file_details is not None:
+        return jsonify(file_details)
     else:
-        return jsonify({'error': 'Invalid file ID'}), 400
+        print(file_details)
+        return jsonify({'error': 'File not found'}), 404
+    
+# @app.route('/process/<string:file_id>', methods=['GET'])
+# def process_csv(file_id):
+#     data = request.get_json()
+
+#     # Retrieve the file details from the request
+#     file_details = get_file_details(file_id)
+#     # file_id = data.get(iid)
+#     print(file_details)
+#     quit()
+#     bucket_name = "schooapp2022.appspot.com"
+#     file_name = insert_file_details(file_id)
+
+#     if file_name:
+#         # Call process_csv_and_openAI to process the uploaded file
+#         process_csv_and_openAI(bucket_name, file_name, uuid)
+#         # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+#         print('File/GPT uploaded successfully')
+#         process_csv(uuid)
+#         # return jsonify(response_data)
+
+#         return jsonify({'File/GPT uploaded successfully:': uuid}), 200
+#     else:
+#         return jsonify({'error': 'Invalid file ID'}), 400
     
 # Define a function to insert a row with file details into the database
 def insert_file_details(filename):
@@ -196,7 +200,7 @@ def insert_file_details(filename):
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO csv_upload (filename, status) VALUES (%s, %s) RETURNING id",
-            (filename, "Processing")
+            (filename, "processing")
         )
         
         row_id = cursor.fetchone()[0]
@@ -209,28 +213,27 @@ def insert_file_details(filename):
         print('Error inserting file details:', e)
 
 # Define a function to retrieve file details from the database by ID
-def get_file_details(uuid):
+def get_file_details(ff_id):
+    print(type(ff_id))
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, filename, status FROM csv_upload WHERE id = %s",
-            (uuid,)
+            "SELECT status FROM csv_upload WHERE id = %s",
+            (ff_id,)
         )
         row = cursor.fetchone()
-        if row:
-            file_id, filename, uuid = row
-            return {
-                'id': file_id,
-                'filename': filename,
-                'Status': uuid
-            }
-        else:
-            return None
+
+        return {
+            'Status': row
+        }
+
+            
     except Error as e:
         print('Error retrieving file details:', e)
 
 @app.route('/status/<string:file_id>', methods=['GET'])
 def get_status(file_id):
+    
     # Retrieve file details from the database
     file_details = get_file_details(file_id)
     print(file_details)
