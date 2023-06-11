@@ -1,6 +1,7 @@
 import os
 import uuid
-from flask import Flask, request, jsonify, make_response
+import time
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from celery import Celery
 import psycopg2
@@ -48,8 +49,7 @@ def connect_to_database():
     except Error as e:
         print('Error connecting to Cloud SQL PostgreSQL database:', e)
 
-# Connect to the database
-conn = connect_to_database()
+# Rest of your code...
 
 @app.route('/upload-to-gcs', methods=['POST'])
 def upload_to_gcs():
@@ -66,6 +66,9 @@ def upload_to_gcs():
         # Check if the file is empty
         if file.seek(0, os.SEEK_END) == 0:
             return jsonify({'error': 'Empty file provided'}), 400
+
+        # Generate a unique ID for the upload process
+        upload_id = str(uuid.uuid4())
 
         # Upload the file to your GCS bucket
         bucket_name = "schooapp2022.appspot.com"
@@ -85,83 +88,75 @@ def upload_to_gcs():
         file.seek(0)
 
         blob = bucket.blob(new_filename)
-        blob.upload_from_file(file)
+        try:
+            blob.upload_from_file(file)
+            # Update the status to "complete"
+            update_upload_status(upload_id, 'complete', new_filename)
 
-        # Insert file details into the database and get the row ID
-        row_id = insert_file_details(new_filename)
-
-        if row_id is not None:
-            return jsonify({'message': 'File uploaded successfully', 'id': row_id})
-        else:
-            return jsonify({'error': 'Failed to insert file details'}), 500
+            return jsonify({'status': 'complete', 'file': new_filename})
+        except Exception as e:
+            # Update the status to "failed"
+            update_upload_status(upload_id, 'failed')
+            return jsonify({'status': 'Upload failed'})
 
     # Return the error message in JSON format
     return jsonify({'error': 'No file provided'}), 400
 
-# Define a function to insert a row with file details into the database
-def insert_file_details(filename, uuid):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO files (filename, uuid) VALUES (%s, %s)",
-            (filename, uuid)
-        )
-        conn.commit()
-        print('File details inserted successfully')
-    except Error as e:
-        print('Error inserting file details:', e)
 
-# Define a function to retrieve file details from the database by UUID
-def get_file_details(uuid):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM files WHERE uuid = %s",
-            (uuid,)
-        )
-        row = cursor.fetchone()
-        if row:
-            file_id, filename, uuid = row
-            return {
-                'id': file_id,
-                'filename': filename,
-                'uuid': uuid
-            }
-        else:
-            return None
-    except Error as e:
-        print('Error retrieving file details:', e)
+def update_upload_status(upload_id, status, file=None):
+    # Update the upload status in the database
+    conn = connect_to_database()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            if file:
+                cursor.execute(
+                    "UPDATE uploads SET status = %s, file = %s WHERE upload_id = %s",
+                    (status, file, upload_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE uploads SET status = %s WHERE upload_id = %s",
+                    (status, upload_id)
+                )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"Upload status updated: ID={upload_id}, Status={status}")
+        except Error as e:
+            print('Error updating upload status:', e)
 
-# Define a function to insert a row with file details into the database
-def get_file_details(file_uuid):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, status FROM csv_upload WHERE id = %s",
-            (str(file_uuid),)  # Convert the UUID to a string
-        )
-        row = cursor.fetchone()
-        if row:
-            file_id, status = row
-            return {'id': str(file_id), 'status': status}
-        else:
-            return {'error': 'File not found'}
-    except Error as e:
-        return {'error': f'Error retrieving file details: {e}'}
+# Rest of your code...
 
-            
-@app.route('/status/<uuid:file_id>', methods=['GET'])
-def get_status(file_id):
-    # Retrieve file details from the database
-    file_details = get_file_details(file_id)
+@app.route('/status/<access_token>', methods=['GET'])
+def get_upload_status(access_token):
+    # Fetch the upload status from the database
+    conn = connect_to_database()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT status, file FROM uploads WHERE access_token = %s",
+                (access_token,)
+            )
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if result is not None:
+                status, file = result
+                if status == 'complete':
+                    return jsonify({'status': status, 'file': file})
+                else:
+                    return jsonify({'status': status})
+            else:
+                return jsonify({'status': 'Invalid access token'})
+        except Error as e:
+            print('Error fetching upload status:', e)
 
-    if 'error' in file_details:
-        return jsonify(file_details), 404
-    else:
-        return jsonify(file_details)
+    return jsonify({'status': 'Error fetching upload status'})
 
-
-
+# Rest of your code...
 
 if __name__ == '__main__':
+    conn = connect_to_database()
     app.run(host='0.0.0.0', port=8443)

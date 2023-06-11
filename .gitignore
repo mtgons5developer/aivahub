@@ -25,3 +25,5 @@ phoenix.crt
 review-tool-388312-802c6fde205d.json
 templates/
 dump.rdb
+certificate_file.crt
+private_key_file.key

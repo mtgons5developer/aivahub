@@ -6,11 +6,11 @@ from flask import Flask, request
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
-from dotenv import load_dotenv
 from google.cloud import storage
 from langchain.prompts.few_shot import FewShotPromptTemplate
 from langchain.prompts.prompt import PromptTemplate
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -118,5 +118,5 @@ def notify_csv_upload():
 #     app.run(ssl_context='adhoc')
 
 if __name__ == '__main__':
-    app.run(ssl_context=('/home/almedae/.ssh/review-tool-388312-802c6fde205d.json', '/home/almedae/.ssh/phoenix.crt'))
-
+    app.run(ssl_context=('certificate_file.crt', 'private_key_file.key'))
+    
