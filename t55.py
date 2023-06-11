@@ -133,25 +133,63 @@ def upload_to_gcs():
         # jsonify({'uuid': uuid}), 500
 
         if uuid is not None:
-            # Call read_csv_file to process the uploaded file
-            table_name = process_csv_and_openAI(bucket_name, new_filename, uuid)
-            # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-            # print('File/GPT uploaded successfully')
-            # return jsonify(response_data)
-            # return table_name
+
             # Create a JSON response with the inserted ID
             response = {
-                'Status: Completed ': uuid
-            }   
-            print('File/GPT uploaded successfully')
+                'id': uuid
+            }
+            print('uuid:', uuid)
+
             return response
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
 
-    # Return the error message in JSON format
-    # return jsonify({'error': 'No file provided'}), 400
-    return table_name
+        # Call read_csv_file to process the uploaded file
+        # table_name = process_csv_and_openAI(bucket_name, new_filename, uuid)
+        # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+        # print('File/GPT uploaded successfully')
+        # process_csv(uuid)
+        # return jsonify(response_data)
 
+    # Return the error message in JSON format
+    return jsonify({'error': 'No file provided'}), 400
+    # return None
+# http://192.168.0.24:8443/process-csv/fbae93c6-7567-4247-9f8f-66acf14e2ad0
+
+# @app.route('/status/<string:file_id>', methods=['GET'])
+# def get_status(file_id):
+#     # Retrieve file details from the database
+#     file_details = get_file_details(file_id)
+#     print(file_details)
+#     if file_details is not None:
+#         return jsonify(file_details)
+#     else:
+#         return jsonify({'error': 'File not found'}), 404
+    
+@app.route('/process/<string:file_id>', methods=['GET'])
+def process_csv(file_id):
+    data = request.get_json()
+
+    # Retrieve the file details from the request
+    file_details = get_file_details(file_id)
+    # file_id = data.get(iid)
+    print(file_id)
+    quit()
+    bucket_name = "schooapp2022.appspot.com"
+    file_name = insert_file_details(file_id)
+
+    if file_name:
+        # Call process_csv_and_openAI to process the uploaded file
+        process_csv_and_openAI(bucket_name, file_name, uuid)
+        # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+        print('File/GPT uploaded successfully')
+        process_csv(uuid)
+        # return jsonify(response_data)
+
+        return jsonify({'File/GPT uploaded successfully:': uuid}), 200
+    else:
+        return jsonify({'error': 'Invalid file ID'}), 400
+    
 # Define a function to insert a row with file details into the database
 def insert_file_details(filename):
     try:
@@ -165,15 +203,7 @@ def insert_file_details(filename):
         conn.commit()
         print('File details inserted successfully')
 
-        # Create a JSON response with the inserted ID
-        response = {
-            'id': row_id
-        }
-        print('UUID:', row_id)
-        # response_data = {'message': 'File Bucket Upload', 'id': row_id}
-        # print('File Bucket Upload')
-
-        return response
+        return row_id
 
     except Error as e:
         print('Error inserting file details:', e)
@@ -304,15 +334,15 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
             ("Completed",)
         )
         conn.commit()
-        # return uuid
+        return None
 
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
 
-    # finally:
-    #     # Close the connection
-    #     if conn is not None:
-    #         conn.close()
+    finally:
+        # Close the connection
+        if conn is not None:
+            conn.close()
 
 
 guidelines_prompt = '''
