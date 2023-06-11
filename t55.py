@@ -1,5 +1,6 @@
 import os
 import csv
+import sys
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from celery import Celery
@@ -8,10 +9,16 @@ from psycopg2 import Error
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from google.cloud import storage
 
+from langchain import OpenAI, LLMChain
+from langchain.chat_models import ChatOpenAI
+
 # Define the Cloud SQL PostgreSQL connection details
 from dotenv import load_dotenv
 
 load_dotenv()
+
+openai_api_key = os.getenv('OPENAI_API_KEY')
+os.environ['OPENAI_API_KEY'] = openai_api_key
 
 # Retrieve the PostgreSQL connection details from environment variables
 db_host = os.getenv('HOST')
@@ -47,10 +54,17 @@ def connect_to_database():
         return conn
     except Error as e:
         print('Error connecting to Cloud SQL PostgreSQL database:', e)
+        return None
+
 
 # Connect to the database
 conn = connect_to_database()
 
+# Check if the connection was successful
+if conn is None:
+    print('Unable to connect to the database. Exiting...')
+    sys.exit(1)
+    
 @app.route('/upload-to-gcs', methods=['POST'])
 def upload_to_gcs():
     file = request.files.get('file')
@@ -92,7 +106,7 @@ def upload_to_gcs():
 
         if row_id is not None:
             # Call read_csv_file to process the uploaded file
-            table_name = read_csv_file(bucket_name, new_filename, row_id)
+            table_name = process_csv_and_openAI(bucket_name, new_filename, row_id)
             return jsonify({'message': 'File uploaded successfully', 'id': row_id, 'table_name': table_name})
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
@@ -153,50 +167,99 @@ def detect_column_count(file_path):
         return len(first_row)
 
 # Function to read a CSV file from a GCS bucket and create a PostgreSQL table
-def read_csv_file(bucket_name, new_filename, row_id):
-    # Download the file from the GCS bucket
-    storage_client = storage.Client()
-    bucket = storage_client.get_bucket(bucket_name)
-    blob = bucket.blob(new_filename)
+def process_csv_and_openAI(bucket_name, new_filename, row_id):
+    try:
+        from langchain.prompts.few_shot import FewShotPromptTemplate
+        from langchain.prompts.prompt import PromptTemplate
 
-    # Create a temporary file path to download the file
-    temp_file_path = f"/tmp/{new_filename}"
+        # Download the file from the GCS bucket
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.blob(new_filename)
 
-    # Download the file to the temporary file path
-    blob.download_to_filename(temp_file_path)
+        # Create a temporary file path to download the file
+        temp_file_path = f"/tmp/{new_filename}"
 
-    # Detect the number of columns in the CSV file
-    column_count = detect_column_count(temp_file_path)
+        # Download the file to the temporary file path
+        blob.download_to_filename(temp_file_path)
 
-    # Create the PostgreSQL table if it doesn't exist
-    create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" ('
+        # Create the PostgreSQL table if it doesn't exist
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" ("review" VARCHAR, "status" VARCHAR);'
 
-    with open(temp_file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file)
-        header_row = next(csv_reader)  # Get the header row
+        cursor = conn.cursor()
+        cursor.execute(create_table_query)
+        conn.commit()
 
-        for i, column_name in enumerate(header_row):
-            create_table_query += f'"{column_name}" VARCHAR, '
+        # Insert data from the CSV file into the PostgreSQL table
+        with open(temp_file_path, 'r') as csv_file:
+            csv_reader = csv.reader(csv_file)
+            next(csv_reader)  # Skip the header row
 
-    create_table_query = create_table_query.rstrip(', ') + ');'
+            insert_query = f'INSERT INTO "{row_id}" ("review", "status") VALUES (%s, %s)'
 
-    cursor = conn.cursor()
-    cursor.execute(create_table_query)
-    conn.commit()
+            for row in csv_reader:
+                # Extract the title and body from the CSV row
+                title, body = row[0], row[1]
 
-    # Insert data from the CSV file into the PostgreSQL table
-    with open(temp_file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file)
-        next(csv_reader)  # Skip the header row
+                # Combine the title and body columns with a comma separator
+                review = f"{title}, {body}"
 
-        insert_query = f'INSERT INTO "{row_id}" VALUES ({", ".join(["%s"] * column_count)})'
+                # Create a dictionary with the extracted values
+                result = {'review': review}
+                # Convert the dictionary to a list
+                examples = [result]
 
-        for row in csv_reader:
-            cursor.execute(insert_query, row)
-            conn.commit()
+                example_prompt = PromptTemplate(input_variables=["review"],
+                                                template="Review: '''{review}'''\nStatus:")
 
-    # Clean up the temporary file
-    os.remove(temp_file_path)
+                # Execute the query to retrieve the guidelines_prompt from the database
+                query = "SELECT guidelines FROM guidelines_prompt WHERE id = 1;"
+                cursor.execute(query)
+
+                # Fetch the result
+                result = cursor.fetchone()
+
+                # Extract the guidelines_prompt from the result
+                guidelines_prompt = result[0]
+
+                few_shot_template = FewShotPromptTemplate(
+                    examples=examples,
+                    example_prompt=example_prompt,
+                    prefix=guidelines_prompt,
+                    suffix="Review: '''{input}'''\nStatus:",
+                    input_variables=["input"]
+                )
+
+                chat_llm = ChatOpenAI(temperature=0.8)
+                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+
+                answer = llm_chain.run(review)
+
+                # Split the answer into review text and status
+                split_answer = answer.strip().split('\nStatus: ')
+                
+                if len(split_answer) == 2:
+                    review_text, status = split_answer
+                else:
+                    # Handle the situation when the answer doesn't have the expected format
+                    review_text = answer.strip()
+                    status = "Unknown"
+
+                cursor.execute(insert_query, (review_text, status))
+                conn.commit()
+
+        # Clean up the temporary file
+        os.remove(temp_file_path)
+
+        return row_id
+
+    except psycopg2.Error as e:
+        print("Error connecting to PostgreSQL:", e)
+
+    finally:
+        # Close the connection
+        if conn is not None:
+            conn.close()
 
     return row_id
 
