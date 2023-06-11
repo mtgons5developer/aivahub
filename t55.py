@@ -128,7 +128,7 @@ def upload_to_gcs():
         if uuid is not None:
             # Call read_csv_file to process the uploaded file
             table_name = process_csv_and_openAI(bucket_name, new_filename, uuid)
-            response_data = {'message': 'File uploaded successfully', 'id': uuid, 'table_name': table_name}
+            response_data = {'message': 'File uploaded successfully', 'id': uuid}
             print('File uploaded successfully')
             return jsonify(response_data)
             # return table_name
