@@ -2,6 +2,9 @@ import os
 import csv
 import psycopg2
 import traceback
+import time
+from openai.error import RateLimitError
+
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -20,6 +23,25 @@ db_port = 5432
 db_name = 'postgres'
 db_user = 'datax'
 db_password = 'root1234'
+
+chat_llm = ChatOpenAI(temperature=0.8)
+
+def completion_with_retry(prompt):
+    retry_delay = 1.0
+    max_retries = 3
+    retries = 0
+
+    while True:
+        try:
+            return chat_llm.completion(prompt)
+        except RateLimitError as e:
+            if retries >= max_retries:
+                raise e
+            else:
+                retries += 1
+                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+
 
 guidelines_prompt = '''
 ''Run each guideline and analyze why it was violated. Always provide a reason:
@@ -135,22 +157,35 @@ conn = psycopg2.connect(
     user=db_user,
     password=db_password
 )
+
 def openAI():
     try:
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
 
-        # Create a cursor object to execute SQL queries
-        cur = conn.cursor()
-
         # Read the CSV file
-        with open("csv.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader)  # Skip the header row
+        with open("csv-gpt.csv", "r") as file:
+            csv_reader = csv.DictReader(file)
+            title_column = None
+            body_column = None
 
+            # Find the title and body columns
+            for column in csv_reader.fieldnames:
+                if column.lower() == "title":
+                    title_column = column
+                elif column.lower() == "body":
+                    body_column = column
+
+            # Check if the title and body columns are found
+            if title_column is None or body_column is None:
+                print("Title and/or body columns not found in the CSV file.")
+                return
+
+            # Process each row in the CSV file
             for row in csv_reader:
                 # Extract the title and body from the CSV row
-                title, body = row[0], row[1]
+                title = row[title_column]
+                body = row[body_column]
 
                 # Combine the title and body columns with a comma separator
                 review = f"{title}, {body}"
@@ -160,17 +195,7 @@ def openAI():
                 examples = [result]
 
                 example_prompt = PromptTemplate(input_variables=["review"],
-                                                template="Review: '''{review}")
-
-                # Execute the query to retrieve the guidelines_prompt from the database
-                # query = "SELECT guidelines FROM guidelines_prompt WHERE id = 4;"
-                # cur.execute(query)
-
-                # # Fetch the result
-                # result = cur.fetchone()
-
-                # Extract the guidelines_prompt from the result
-                # guidelines_prompt = result[0]
+                                        template="Review: '''{review}'''\nStatus: \nReason: ")
 
                 few_shot_template = FewShotPromptTemplate(
                     examples=examples,
@@ -180,24 +205,20 @@ def openAI():
                     input_variables=["input"]
                 )
 
-                chat_llm = ChatOpenAI(temperature=0.8)
+                # chat_llm = ChatOpenAI(temperature=0.8)
                 llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
                 answer = llm_chain.run(review)
-
+            
                 print(f"Review: {review}\nStatus: {answer.strip()}")
 
-        # Close the cursor
-        cur.close()
+    except IOError as e:
+        print("Error reading the CSV file:", e)
 
-    except psycopg2.Error as e:
-        print("Error connecting to PostgreSQL:", e)
+    except Exception as e:
+        print("An error occurred:", e)
         traceback.print_exc()
 
-    finally:
-        # Close the connection
-        if conn is not None:
-            conn.close()
 
 
 # review = sheet()
