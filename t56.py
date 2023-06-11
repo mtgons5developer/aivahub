@@ -3,7 +3,7 @@ import re
 import csv
 import sys
 import time
-from flask import Flask, request, jsonify, make_response, url_for
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from celery import Celery
 import psycopg2
@@ -14,6 +14,7 @@ from google.cloud import storage
 from flask_sslify import SSLify
 import traceback
 
+global bucket_name, new_filename, uuid
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -23,6 +24,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+bucket_name = "schooapp2022.appspot.com"
 openai_api_key = os.getenv('OPENAI_API_KEY')
 os.environ['OPENAI_API_KEY'] = openai_api_key
 
@@ -96,6 +98,7 @@ def completion_with_retry(prompt):
 
 @app.route('/upload-to-gcs', methods=['POST'])
 def upload_to_gcs():
+
     file = request.files.get('file')
 
     if file:
@@ -111,7 +114,6 @@ def upload_to_gcs():
             return jsonify({'error': 'Empty file provided'}), 400
 
         # Upload the file to your GCS bucket
-        bucket_name = "schooapp2022.appspot.com"
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(bucket_name)
         original_filename = file.filename
@@ -133,16 +135,18 @@ def upload_to_gcs():
         # Insert file details into the database and get the row ID
         uuid = insert_file_details(new_filename)
         # jsonify({'uuid': uuid}), 500
-        print(bucket_name, new_filename, uuid)
-        
-        if uuid is not None:
+        # print(bucket_name, new_filename, uuid)
+        g.uuid = uuid
 
+        if uuid is not None:
+            g.uuid = uuid
+            g.new_filename = new_filename            
             # Create a JSON response with the inserted ID
             response = {
                 'status': 'completed',
                 'id': uuid,
             }
-            process_csv_and_openAI(bucket_name, new_filename, uuid)
+            # process_csv_and_openAI(bucket_name, new_filename, uuid)
             return jsonify(response), 200
 
             # data = get_gpt_data("bf0082e3-0ce2-41a3-a7cc-9a778b031748")
@@ -161,6 +165,8 @@ def upload_to_gcs():
 
 @app.route('/process/<string:ff_id>', methods=['GET'])
 def process_csv(ff_id):
+    print(bucket_name, new_filename, uuid)
+    quit()
 #     # Retrieve the file details from the request
     file_name = get_filename(ff_id)
     new_filename = str(file_name)
@@ -168,7 +174,6 @@ def process_csv(ff_id):
 
     if file_name is not None:
         # Call 1 to process the uploaded file
-        bucket_name = "schooapp2022.appspot.com"
         data = process_csv_and_openAI(bucket_name, new_filename, ff_id)
         # data = get_gpt_data(ff_id)
         # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
@@ -252,7 +257,7 @@ def get_status(file_id):
         print(data)
         response_data = {
             'status': 'complete',
-            'gpt_data': data
+            'data': data
         }
         return jsonify(response_data), 200
     else:
@@ -301,7 +306,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
         create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
 
-        print(uuid, blob.download_to_filename(temp_file_path))
+        print(bucket_name, new_filename, uuid)
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
@@ -378,6 +383,101 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
     #     # Close the connection
     #     if conn is not None:
     #         conn.close()
+
+@app.route('/gpt', methods=['POST'])
+def process_gpt():
+    try:
+        # Get the request data
+        data = request.get_json()
+        bucket_name = data['bucket_name']
+        new_filename = data['new_filename']
+        uuid = data['uuid']
+
+        from langchain.prompts.few_shot import FewShotPromptTemplate
+        from langchain.prompts.prompt import PromptTemplate
+
+        # Download the file from the GCS bucket
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.blob(new_filename)
+
+        # Create a temporary file path to download the file
+        temp_file_path = f"/tmp/{new_filename}"
+
+        # Download the file to the temporary file path
+        blob.download_to_filename(temp_file_path)
+
+        # Create the PostgreSQL table if it doesn't exist
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
+        cursor = conn.cursor()
+        cursor.execute(create_table_query)
+        conn.commit()
+
+        # Insert data from the CSV file into the PostgreSQL table
+        with open(temp_file_path, 'r') as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+
+            # Find the title and body columns
+            title_column = None
+            body_column = None
+            for column in csv_reader.fieldnames:
+                if column.lower() == "title":
+                    title_column = column
+                elif column.lower() == "body":
+                    body_column = column
+
+            # Check if the title and body columns are found
+            if title_column is None or body_column is None:
+                return jsonify({'error': 'Title and/or body columns not found in the CSV file.'}), 400
+
+            insert_query = f'INSERT INTO "{uuid}" ("status", "reason") VALUES (%s, %s)'
+
+            for row in csv_reader:
+                # Extract the title and body from the CSV row
+                title = row[title_column]
+                body = row[body_column]
+
+                # Combine the title and body columns with a comma separator
+                review = f"{title}, {body}"
+
+                # Create a dictionary with the extracted values
+                result = {'review': review}
+                # Convert the dictionary to a list
+                examples = [result]
+
+                example_prompt = PromptTemplate(input_variables=["review"],
+                                                template="Review: '''{review}'''\nStatus: \nReason: ")
+
+                few_shot_template = FewShotPromptTemplate(
+                    examples=examples,
+                    example_prompt=example_prompt,
+                    prefix=guidelines_prompt,
+                    suffix="Review: '''{input}",
+                    input_variables=["input"]
+                )
+
+                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+
+                answer = llm_chain.run(review)
+                status_end = answer.find("\nReason: ")
+                status = answer[:status_end].strip()
+                reason = answer[status_end:].strip()
+
+                cursor.execute(insert_query, (status, reason))
+                conn.commit()
+
+        # Clean up the temporary file
+        os.remove(temp_file_path)
+        cursor.execute(
+            "UPDATE csv_upload SET status = %s",
+            ("completed",)
+        )
+        conn.commit()
+
+        return jsonify({'message': 'CSV processing completed.'}), 200
+
+    except psycopg2.Error as e:
+        return jsonify({'error': 'Error connecting to PostgreSQL: {}'.format(str(e))}), 500
 
 
 guidelines_prompt = '''
