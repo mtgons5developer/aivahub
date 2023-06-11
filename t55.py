@@ -217,8 +217,8 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
         # Create the PostgreSQL table if it doesn't exist
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
-        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY,"status" VARCHAR, "reason" VARCHAR, "test" VARCHAR);'
-        
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
+
         print(uuid)
         cursor = conn.cursor()
         cursor.execute(create_table_query)
@@ -272,20 +272,15 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
                 answer = llm_chain.run(review)
 
-                # Split the answer into review text and status
-                split_answer = answer.strip().split('\nStatus: ')
+                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-                if len(split_answer) == 2:
-                        review_text, status = split_answer
-                        status, remaining_text = split_answer
-                        reason = remaining_text.strip().split('\nReason: ', 1)
-                else:
-                    # Handle the situation when the answer doesn't have the expected format
-                    review_text = answer.strip()
-                    status = answer.strip()
-                    reason = ""
+                answer = llm_chain.run(review)
+                status_end = answer.find("\nReason: ")
+                status = answer[:status_end].strip()
+                reason = answer[status_end:].strip()
+                print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
 
-                cursor.execute(insert_query, (reason, review_text, status))
+                cursor.execute(insert_query, (status, reason))
                 conn.commit()
 
         # Clean up the temporary file

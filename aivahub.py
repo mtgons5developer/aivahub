@@ -209,8 +209,13 @@ def openAI():
                 llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
                 answer = llm_chain.run(review)
+                status_end = answer.find("\nReason: ")
+                status = answer[:status_end].strip()
+                reason = answer[status_end:].strip()
+                print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+
             
-                print(f"Review: {review}\nStatus: {answer.strip()}")
+                # print(f"Review: {review}\nStatus: {answer.strip()}")
 
     except IOError as e:
         print("Error reading the CSV file:", e)
