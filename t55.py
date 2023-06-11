@@ -1,4 +1,5 @@
 import os
+import re
 import csv
 import sys
 import time
@@ -11,6 +12,8 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from openai.error import RateLimitError
 from google.cloud import storage
 from flask_sslify import SSLify
+import traceback
+
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -95,6 +98,11 @@ def completion_with_retry(prompt):
 def upload_to_gcs():
     file = request.files.get('file')
 
+    data = get_gpt_data("bf0082e3-0ce2-41a3-a7cc-9a778b031748")
+    # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+    print('Status: Complete', data)
+    return data, 200
+    
     if file:
         # Check if the file is a CSV file
         if not file.filename.endswith('.csv'):
@@ -129,18 +137,21 @@ def upload_to_gcs():
 
         # Insert file details into the database and get the row ID
         uuid = insert_file_details(new_filename)
-
         # jsonify({'uuid': uuid}), 500
 
         if uuid is not None:
 
             # Create a JSON response with the inserted ID
-            response = {
-                'id': uuid
-            }
             print('uuid:', uuid)
+            response = {'id': uuid}
+            # process_csv_and_openAI(bucket_name, new_filename, uuid)
+            # return jsonify(response), 200
 
-            return response
+            data = get_gpt_data("bf0082e3-0ce2-41a3-a7cc-9a778b031748")
+            # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+            print('File/GPT uploaded successfully', data)
+            return data
+            
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
 
@@ -154,45 +165,26 @@ def upload_to_gcs():
     # Return the error message in JSON format
     return jsonify({'error': 'No file provided'}), 400
     # return None
-# http://192.168.0.24:8443/process-csv/fbae93c6-7567-4247-9f8f-66acf14e2ad0
 
 @app.route('/process/<string:ff_id>', methods=['GET'])
 def process_csv(ff_id):
-
-    print(ff_id)  # Example: printing the value to the console
-
-    file_details = get_file_details(ff_id)
-    print(file_details)
-
-    if file_details is not None:
-        return jsonify(file_details)
-    else:
-        print(file_details)
-        return jsonify({'error': 'File not found'}), 404
-    
-# @app.route('/process/<string:file_id>', methods=['GET'])
-# def process_csv(file_id):
-#     data = request.get_json()
-
 #     # Retrieve the file details from the request
-#     file_details = get_file_details(file_id)
-#     # file_id = data.get(iid)
-#     print(file_details)
-#     quit()
-#     bucket_name = "schooapp2022.appspot.com"
-#     file_name = insert_file_details(file_id)
+    # file_details = get_file_details(ff_id)
+    file_name = get_filename(ff_id)
+    file_name = str(file_name)
+    print(file_name, ff_id)
 
-#     if file_name:
-#         # Call process_csv_and_openAI to process the uploaded file
-#         process_csv_and_openAI(bucket_name, file_name, uuid)
-#         # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-#         print('File/GPT uploaded successfully')
-#         process_csv(uuid)
-#         # return jsonify(response_data)
+    if file_name is not None:
+        # Call 1 to process the uploaded file
+        bucket_name = "schooapp2022.appspot.com"
+        # process_csv_and_openAI(bucket_name, file_name, ff_id)
+        data = get_gpt_data(ff_id)
+        # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+        print('Status: Complete', data)
 
-#         return jsonify({'File/GPT uploaded successfully:': uuid}), 200
-#     else:
-#         return jsonify({'error': 'Invalid file ID'}), 400
+        return jsonify({'File/GPT uploaded successfully:': ff_id, 'data:': data}), 200
+    else:
+        return jsonify({'error': 'Invalid file ID'}), 400
     
 # Define a function to insert a row with file details into the database
 def insert_file_details(filename):
@@ -213,34 +205,64 @@ def insert_file_details(filename):
         print('Error inserting file details:', e)
 
 # Define a function to retrieve file details from the database by ID
-def get_file_details(ff_id):
-    print(type(ff_id))
+def get_file_details(ff_idd):
     try:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT status FROM csv_upload WHERE id = %s",
-            (ff_id,)
+            (ff_idd,)
         )
         row = cursor.fetchone()
-
-        return {
-            'Status': row
-        }
-
+        print(row)
+        return row
             
     except Error as e:
         print('Error retrieving file details:', e)
 
+def get_gpt_data(fff_id):
+    try:
+        print(type(fff_id))
+        cursor = conn.cursor()
+        cursor.execute(
+            f'SELECT * FROM "{fff_id}"'
+        )
+        rows = cursor.fetchall()
+
+        if rows:
+            result = []
+            for row in rows:
+                data = {
+                    'id': row[0],
+                    'status': row[1],
+                    'reason': row[2],
+                    # Add more columns as needed
+                }
+                result.append(data)
+
+            return result
+
+    except Error as e:
+        print('Error retrieving data from the table:', e)
+
+
 @app.route('/status/<string:file_id>', methods=['GET'])
 def get_status(file_id):
-    
+
     # Retrieve file details from the database
     file_details = get_file_details(file_id)
-    print(file_details)
-    if file_details is not None:
-        return jsonify(file_details)
+    # print(file_details)
+
+    # Remove special characters and convert to lowercase
+    formatted_status = re.sub('[^a-zA-Z0-9]', '', file_details[0].lower())
+
+    if formatted_status == "completed":
+        data = get_gpt_data(file_id)
+        return data, 200
     else:
-        return jsonify({'error': 'File not found'}), 404
+        # return jsonify({'error': 'File not found'}), 404
+        processing = {"status": "processing"}
+        return jsonify(processing), 200
+
 
 def detect_column_count(file_path):
     with open(file_path, 'r') as file:
@@ -248,7 +270,20 @@ def detect_column_count(file_path):
         first_row = next(reader)
         return len(first_row)
 
-# Function to read a CSV file from a GCS bucket and create a PostgreSQL table
+def get_filename(ff_id):
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT filename FROM csv_upload WHERE id = %s",
+            (ff_id,)
+        )
+        row = cursor.fetchone()
+            
+        return row
+            
+    except Error as e:
+        print('Error retrieving file details:', e)
+        
 def process_csv_and_openAI(bucket_name, new_filename, uuid):
     try:
         from langchain.prompts.few_shot import FewShotPromptTemplate
@@ -269,7 +304,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
         create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
 
-        print(uuid)
+        # print(uuid, blob.download_to_filename(temp_file_path))
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
@@ -342,10 +377,10 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
 
-    finally:
-        # Close the connection
-        if conn is not None:
-            conn.close()
+    # finally:
+    #     # Close the connection
+    #     if conn is not None:
+    #         conn.close()
 
 
 guidelines_prompt = '''
