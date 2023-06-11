@@ -10,6 +10,7 @@ from psycopg2 import Error
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from openai.error import RateLimitError
 from google.cloud import storage
+from flask_sslify import SSLify
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -41,6 +42,8 @@ app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
+ssl_cert_path = 'server-ca.pem'
+
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
     try:
@@ -49,7 +52,9 @@ def connect_to_database():
             password=db_password,
             host=db_host,
             port=db_port,
-            database=db_name
+            database=db_name,
+            # sslmode='verify-ca',
+            sslrootcert=ssl_cert_path
         )
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         print('Connected to Cloud SQL PostgreSQL database')
@@ -147,6 +152,7 @@ def insert_file_details(filename):
             "INSERT INTO csv_upload (filename, status) VALUES (%s, %s) RETURNING id",
             (filename, "Processing")
         )
+        
         row_id = cursor.fetchone()[0]
         conn.commit()
         print('File details inserted successfully')
@@ -166,7 +172,7 @@ def get_file_details(uuid):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM csv_upload WHERE uuid = %s",
+            "SELECT id, filename, status FROM csv_upload WHERE id = %s",
             (uuid,)
         )
         row = cursor.fetchone()
@@ -182,11 +188,11 @@ def get_file_details(uuid):
     except Error as e:
         print('Error retrieving file details:', e)
 
-@app.route('/status/<int:file_id>', methods=['GET'])
+@app.route('/status/<string:file_id>', methods=['GET'])
 def get_status(file_id):
     # Retrieve file details from the database
     file_details = get_file_details(file_id)
-
+    print(file_details)
     if file_details is not None:
         return jsonify(file_details)
     else:
@@ -406,3 +412,6 @@ guidelines_prompt = '''
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8443)
+    # app.run(ssl_context=('certificate.crt', 'private.key'), port=8443)
+
+

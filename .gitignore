@@ -27,3 +27,8 @@ templates/
 dump.rdb
 certificate_file.crt
 private_key_file.key
+server-ca.pem
+server.crt
+server.key
+server.pem
+csr.csr
