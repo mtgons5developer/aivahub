@@ -98,11 +98,6 @@ def completion_with_retry(prompt):
 def upload_to_gcs():
     file = request.files.get('file')
 
-    data = get_gpt_data("bf0082e3-0ce2-41a3-a7cc-9a778b031748")
-    # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-    print('Status: Complete', data)
-    return data, 200
-    
     if file:
         # Check if the file is a CSV file
         if not file.filename.endswith('.csv'):
@@ -138,29 +133,27 @@ def upload_to_gcs():
         # Insert file details into the database and get the row ID
         uuid = insert_file_details(new_filename)
         # jsonify({'uuid': uuid}), 500
-
+        print(bucket_name, new_filename, uuid)
+        
         if uuid is not None:
 
             # Create a JSON response with the inserted ID
-            print('uuid:', uuid)
-            response = {'id': uuid}
-            # process_csv_and_openAI(bucket_name, new_filename, uuid)
-            # return jsonify(response), 200
+            response = {
+                'status': 'completed',
+                'id': uuid
+            }
+            process_csv_and_openAI(bucket_name, new_filename, uuid)
+            return jsonify(response), 200
 
-            data = get_gpt_data("bf0082e3-0ce2-41a3-a7cc-9a778b031748")
-            # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-            print('File/GPT uploaded successfully', data)
-            return data
+            # data = get_gpt_data("bf0082e3-0ce2-41a3-a7cc-9a778b031748")
+            # # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
+            # print('File/GPT uploaded successfully', data)
+            # return data
             
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
 
-        # Call read_csv_file to process the uploaded file
-        # table_name = process_csv_and_openAI(bucket_name, new_filename, uuid)
-        # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-        # print('File/GPT uploaded successfully')
-        # process_csv(uuid)
-        # return jsonify(response_data)
+        # process_csv_and_openAI(bucket_name, new_filename, uuid)
 
     # Return the error message in JSON format
     return jsonify({'error': 'No file provided'}), 400
@@ -169,20 +162,19 @@ def upload_to_gcs():
 @app.route('/process/<string:ff_id>', methods=['GET'])
 def process_csv(ff_id):
 #     # Retrieve the file details from the request
-    # file_details = get_file_details(ff_id)
     file_name = get_filename(ff_id)
-    file_name = str(file_name)
+    new_filename = str(file_name)
     print(file_name, ff_id)
 
     if file_name is not None:
         # Call 1 to process the uploaded file
         bucket_name = "schooapp2022.appspot.com"
-        # process_csv_and_openAI(bucket_name, file_name, ff_id)
-        data = get_gpt_data(ff_id)
+        data = process_csv_and_openAI(bucket_name, new_filename, ff_id)
+        # data = get_gpt_data(ff_id)
         # response_data = {'message': 'File/GPT uploaded successfully', 'id': uuid}
-        print('Status: Complete', data)
+        # print('Status: Complete', data)
 
-        return jsonify({'File/GPT uploaded successfully:': ff_id, 'data:': data}), 200
+        return jsonify({'File/GPT uploaded successfully:': data}), 200
     else:
         return jsonify({'error': 'Invalid file ID'}), 400
     
@@ -250,14 +242,19 @@ def get_status(file_id):
 
     # Retrieve file details from the database
     file_details = get_file_details(file_id)
-    # print(file_details)
 
     # Remove special characters and convert to lowercase
     formatted_status = re.sub('[^a-zA-Z0-9]', '', file_details[0].lower())
+    print(formatted_status)
 
     if formatted_status == "completed":
         data = get_gpt_data(file_id)
-        return data, 200
+        print(data)
+        response_data = {
+            'status': 'complete',
+            'data': data
+        }
+        return jsonify(response_data), 200
     else:
         # return jsonify({'error': 'File not found'}), 404
         processing = {"status": "processing"}
@@ -304,7 +301,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
         create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
 
-        # print(uuid, blob.download_to_filename(temp_file_path))
+        print(uuid, blob.download_to_filename(temp_file_path))
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
@@ -369,7 +366,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE csv_upload SET status = %s",
-            ("Completed",)
+            ("completed",)
         )
         conn.commit()
         return None
