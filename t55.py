@@ -128,9 +128,10 @@ def upload_to_gcs():
         if row_id is not None:
             # Call read_csv_file to process the uploaded file
             table_name = process_csv_and_openAI(bucket_name, new_filename, row_id)
-            response_data = {'message': 'File uploaded successfully', 'id': row_id, 'table_name': table_name}
-            response = jsonify(response_data)
-            return response
+            # response_data = {'message': 'File uploaded successfully', 'id': row_id, 'table_name': table_name}
+            print('File uploaded successfully')
+            # response = jsonify(response_data)
+            return table_name
         else:
             return jsonify({'error': 'Failed to insert file details'}), 500
 
@@ -153,6 +154,7 @@ def insert_file_details(filename):
         response = {
             'id': row_id
         }
+        print('UUID:', row_id)
         return jsonify(response)
 
     except Error as e:
@@ -213,7 +215,7 @@ def process_csv_and_openAI(bucket_name, new_filename, row_id):
         blob.download_to_filename(temp_file_path)
 
         # Create the PostgreSQL table if it doesn't exist
-        create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" ("status" VARCHAR, "reason" VARCHAR, "uuid" VARCHAR);'
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" ("status" VARCHAR, "reason" VARCHAR);'
 
         cursor = conn.cursor()
         cursor.execute(create_table_query)
@@ -237,7 +239,7 @@ def process_csv_and_openAI(bucket_name, new_filename, row_id):
                 print("Title and/or body columns not found in the CSV file.")
                 return row_id
 
-            insert_query = f'INSERT INTO "{row_id}" ("status", "reason", "{row_id}") VALUES (%s, %s)'
+            insert_query = f'INSERT INTO "{row_id}" ("status", "reason") VALUES (%s, %s)'
 
             for row in csv_reader:
                 # Extract the title and body from the CSV row
@@ -271,13 +273,17 @@ def process_csv_and_openAI(bucket_name, new_filename, row_id):
                 split_answer = answer.strip().split('\nStatus: ')
 
                 if len(split_answer) == 2:
-                    status, remaining_text = split_answer
-                    reason = remaining_text.strip().split('\nReason: ', 1)
+                        review_text, status = split_answer
+                        status, remaining_text = split_answer
+                        reason = remaining_text.strip().split('\nReason: ', 1)
                 else:
                     # Handle the situation when the answer doesn't have the expected format
+                    review_text = answer.strip()
+                    status = ""
                     status = answer.strip()
                     reason = ""
 
+                cursor.execute(insert_query, (review_text, status))
                 cursor.execute(insert_query, (status, reason))
                 conn.commit()
 
