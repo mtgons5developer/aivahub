@@ -49,7 +49,7 @@ app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
-ssl_cert_path = '/etc/nginx/dhparam.pem'
+ssl_cert_path = '~/.ssh/private_key.pem'
 
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
@@ -513,7 +513,7 @@ guidelines_prompt = '''
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
-    app.run(ssl_context=('/etc/ssl/certs/ca-certificates.crt', '/etc/ssl/private/ssl-cert-snakeoil.key'), port=8443)
+    app.run(ssl_context=('/etc/ssl/certs/ca-certificates.crt', '~/.ssh/private_key.key'), port=8443)
     app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
 
 # sudo certbot --nginx --nginx-server-root=/opt/homebrew/etc/nginx --nginx-ctl=/opt/homebrew/etc/nginx
