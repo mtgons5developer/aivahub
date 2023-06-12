@@ -49,7 +49,7 @@ app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
-ssl_cert_path = 'server-ca.pem'
+ssl_cert_path = '/etc/nginx/dhparam.pem'
 
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
