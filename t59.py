@@ -60,7 +60,7 @@ def connect_to_database():
             host=db_host,
             port=db_port,
             database=db_name,
-            sslmode='verify-ca',
+            sslmode='require',
             sslrootcert=ssl_cert_path
         )
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
@@ -514,7 +514,7 @@ guidelines_prompt = '''
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
     app.run(ssl_context=('/etc/ssl/certs/ca-certificates.crt', '/etc/ssl/private/ssl-cert-snakeoil.key'), port=8443)
-    # app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
+    app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
 
 # sudo certbot --nginx --nginx-server-root=/opt/homebrew/etc/nginx --nginx-ctl=/opt/homebrew/etc/nginx
 
