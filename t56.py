@@ -146,7 +146,7 @@ def upload_to_gcs():
             cursor.execute(
                 "UPDATE csv_upload SET status = %s WHERE id = %s",
                 ("processing", uuid)
-            )    
+            )
             return jsonify(response), 200
 
         else:
@@ -258,7 +258,7 @@ def get_status(file_id):
         print(data)
         response_data = {
             'status': 'complete',
-            'data': data
+            'gpt_data': data
         }
         return jsonify(response_data), 200
     else:
