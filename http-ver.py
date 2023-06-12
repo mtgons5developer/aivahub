@@ -1,8 +1,17 @@
-import requests
+import ssl
+from flask import Flask
 
-response = requests.options('http://192.168.0.24:8443')
+app = Flask(__name__)
 
-# Check the 'server' response header to get the HTTP version
-http_version = response.headers.get('server')
+# Route definition
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'
 
-print('Server HTTP version:', http_version)
+if __name__ == '__main__':
+    # Enable self-signed SSL
+    context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    context.load_cert_chain('certificate.crt', 'private.key')
+
+    # Run the Flask application
+    app.run(ssl_context=context, host='0.0.0.0', port=8443)

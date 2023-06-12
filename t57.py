@@ -3,6 +3,7 @@ import re
 import csv
 import sys
 import time
+import requests
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from celery import Celery
@@ -39,6 +40,7 @@ db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
 # Create Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+# sslify = SSLify(app)  # Enable SSL with self-signed certificate
 
 # Configure Celery
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
@@ -160,11 +162,9 @@ def upload_to_gcs():
 def process_csv(ff_id):
 
 #     # Retrieve the file details from the request
-    file_name = get_filename(ff_id)
-    new_filename = str(file_name)
-    new_filename = re.sub(r'[^a-zA-Z0-9.-]', '', file_name[0])
+    new_filename = get_filename(ff_id)
 
-    if file_name is not None:
+    if new_filename is not None:
         # Call 1 to process the uploaded file
         process_csv_and_openAI(bucket_name, new_filename, ff_id)
         data = get_gpt_data(ff_id)
@@ -172,12 +172,6 @@ def process_csv(ff_id):
             'status': 'complete',
             'data': data
         }
-
-        # cursor = conn.cursor()
-        # cursor.execute(
-        #     "UPDATE csv_upload SET status = %s WHERE id = %s",
-        #     ("completed", ff_id)
-        # )    
 
         return jsonify(response_data), 200
         # return jsonify({'File/GPT uploaded successfully:': data}), 200
@@ -210,9 +204,14 @@ def get_file_details(ff_idd):
             "SELECT status FROM csv_upload WHERE id = %s",
             (ff_idd,)
         )
-        row = cursor.fetchone()
+        
+        # Fetch the result as a tuple
+        result = cursor.fetchone()
 
-        return row
+        # Extract the value from the tuple
+        result = result[0]
+
+        return result
             
     except Error as e:
         print('Error retrieving file details:', e)
@@ -246,26 +245,39 @@ def get_gpt_data(fff_id):
 @app.route('/status/<string:file_id>', methods=['GET'])
 def get_status(file_id):
 
-    # Retrieve file details from the database
-    file_details = get_file_details(file_id)
+    if file_id is None:
+        return jsonify({'error': 'File not found or no UUID on payload.'}), 404
+    elif file_id == '':
+        return jsonify({'error': 'File not found or no UUID on payload.'}), 404
 
-    # Remove special characters and convert to lowercase
-    formatted_status = re.sub('[^a-zA-Z0-9]', '', file_details[0].lower())
-    # print(formatted_status)
+    try:
 
-    if formatted_status == "completed":
-        data = get_gpt_data(file_id)
-        print(data)
-        response_data = {
-            'status': 'complete',
-            'gpt_data': data
-        }
-        return jsonify(response_data), 200
-    else:
-        # return jsonify({'error': 'File not found'}), 404
-        processing = {"status": "processing"}
-        return jsonify(processing), 200
+        # Retrieve file details from the database
+        file_details = get_file_details(file_id)
 
+        # Remove special characters and convert to lowercase
+        formatted_status = file_details.lower()
+
+        if formatted_status == "completed":
+            data = get_gpt_data(file_id)
+            response_data = {
+                'status': 'complete',
+                'gpt_data': data
+            }
+            return jsonify(response_data), 200
+        else:
+            # return jsonify({'error': 'File not found'}), 404
+            processing = {"status": "processing"}
+            return jsonify(processing), 200
+
+    except requests.HTTPError as error:
+        if error.response.status_code == 404:
+            print('404 Not Found Error: The requested URL was not found on the server.')
+            return jsonify(processing), 404
+        else:
+            print('An HTTP error occurred:', error)
+            return jsonify(error), 403
+        
 
 def detect_column_count(file_path):
     with open(file_path, 'r') as file:
@@ -280,9 +292,13 @@ def get_filename(ff_id):
             "SELECT filename FROM csv_upload WHERE id = %s",
             (ff_id,)
         )
-        row = cursor.fetchone()
+        # Fetch the result as a tuple
+        result = cursor.fetchone()
+
+        # Extract the value from the tuple
+        result = result[0]
             
-        return row
+        return result
             
     except Error as e:
         print('Error retrieving file details:', e)
@@ -498,5 +514,6 @@ guidelines_prompt = '''
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8443, threaded=True)
     # app.run(ssl_context=('certificate.crt', 'private.key'), port=8443)
+    # app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
 
 
