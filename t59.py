@@ -514,7 +514,7 @@ guidelines_prompt = '''
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
     app.run(ssl_context=('/etc/ssl/certs/ca-certificates.crt', '~/.ssh/private_key.key'), port=8443)
-    app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
+    # app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
 
 # sudo certbot --nginx --nginx-server-root=/opt/homebrew/etc/nginx --nginx-ctl=/opt/homebrew/etc/nginx
 
