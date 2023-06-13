@@ -1,15 +1,14 @@
 import os
 import csv
 import psycopg2
-import requests
-from flask import Flask, request
+import traceback
+import time
+from openai.error import RateLimitError
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
-from google.cloud import storage
-from langchain.prompts.few_shot import FewShotPromptTemplate
-from langchain.prompts.prompt import PromptTemplate
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
+from create_env import create
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,11 +17,34 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 os.environ['OPENAI_API_KEY'] = openai_api_key
 
 # Retrieve the PostgreSQL connection details from environment variables
-db_host = os.getenv('HOST')
-db_port = os.getenv('DB_PORT')
-db_name = os.getenv('DATABASE')
-db_user = os.getenv('DB_USER')
-db_password = os.getenv('PASSWORD')
+db_host = 'localhost'
+db_port = 5432
+db_name = 'postgres'
+db_user = 'datax'
+db_password = 'root1234'
+
+chat_llm = ChatOpenAI()
+
+def completion_with_retry(prompt):
+    retry_delay = 1.0
+    max_retries = 3
+    retries = 0
+
+    while True:
+        try:
+            return chat_llm.completion(prompt)
+        except RateLimitError as e:
+            if retries >= max_retries:
+                raise e
+            else:
+                retries += 1
+                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+
+
+guidelines_prompt = '''
+...
+'''
 
 # Connect to the PostgreSQL database
 conn = psycopg2.connect(
@@ -33,90 +55,66 @@ conn = psycopg2.connect(
     password=db_password
 )
 
-# Disable SSL certificate verification warning
-requests.packages.urllib3.disable_warnings()
-# Send HTTP request without certificate verification
-response = requests.get('https://example.com', verify=False)
+def openAI():
+    try:
+        from langchain.prompts.few_shot import FewShotPromptTemplate
+        from langchain.prompts.prompt import PromptTemplate
 
-app = Flask(__name__)
+        # Read the CSV file
+        with open("csv-gpt.csv", "r") as file:
+            csv_reader = csv.DictReader(file)
+            title_column = None
+            body_column = None
 
-@app.route('/process_csv', methods=['POST'])
-def process_csv():
-    # Get the CSV file content from the request
-    file_content = request.data.decode('utf-8')
+            # Find the title and body columns
+            for column in csv_reader.fieldnames:
+                if column.lower() == "title":
+                    title_column = column
+                elif column.lower() == "body":
+                    body_column = column
 
-    # Parse the CSV content
-    rows = csv.reader(file_content.splitlines())
-    header = next(rows)  # Extract the header row
+            # Check if the title and body columns are found
+            if title_column is None or body_column is None:
+                print("Title and/or body columns not found in the CSV file.")
+                return
 
-    # Find the indices of the required columns
-    column_indices = [header.index(column) for column in ["Title", "Body", "gpt_status", "gpt_reason"]]
+            # Process each row in the CSV file
+            for row in csv_reader:
+                # Extract the title and body from the CSV row
+                title = row[title_column]
+                body = row[body_column]
 
-    # Create a cursor object to execute SQL queries
-    cursor = conn.cursor()
+                # Combine the title and body columns with a comma separator
+                review = f"{title}, {body}"
 
-    # Execute the query to retrieve the guidelines_prompt from the database
-    query = "SELECT guidelines FROM guidelines_prompt WHERE id = 4;"
-    cursor.execute(query)
+                # Create a dictionary with the extracted values
+                result = {'review': review}
+                examples = [result]
 
-    # Fetch the result
-    result = cursor.fetchone()
+                example_prompt = PromptTemplate(input_variables=["review"],
+                                        template="Review: '''{review}'''\nStatus: \nReason: ")
 
-    # Extract the guidelines_prompt from the result
-    guidelines_prompt = result[0]
+                few_shot_template = FewShotPromptTemplate(
+                    examples=examples,
+                    example_prompt=example_prompt,
+                    prefix=guidelines_prompt,
+                    suffix="Review: '''{input}",
+                    input_variables=["input"]
+                )
 
-    # Iterate over the rows and extract the required columns
-    for row in rows:
-        columns = [row[index] for index in column_indices]
-        title, body, gpt_status, gpt_reason = columns
-        # Do something with the extracted columns
-        review = f"{title}, {body}"
-        # Create a dictionary with the extracted values
-        result = {'review': review, 'status': gpt_status, 'reason': gpt_reason}
-        # Convert the dictionary to a list
-        examples = [result]
+                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-        example_prompt = PromptTemplate(input_variables=["review", "status", "reason"],
-                                        template="Review: '''{review}'''\nStatus: {status}\nReason: {reason}")
+                answer = llm_chain.run(review)
+                answer = completion_with_retry(answer)
 
-        few_shot_template = FewShotPromptTemplate(
-            examples=examples,
-            example_prompt=example_prompt,
-            prefix=guidelines_prompt,
-            suffix="Review: '''{input}'''\nStatus:",
-            input_variables=["input"]
-        )
+                print(f"Review: {review}\nStatus: {answer.strip()}")
 
-        chat_llm = ChatOpenAI(temperature=0)
-        llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+    except IOError as e:
+        print("Error reading the CSV file:", e)
 
-        answer = llm_chain.run(review)
+    except Exception as e:
+        print("An error occurred:", e)
+        traceback.print_exc()
 
-        # Split the contents into status and reason
-        status, reason = answer.strip().split('\nReason: ', 1) if '\nReason: ' in answer else (answer, '')
 
-        # Insert the extracted values into the 'analysis' table
-        insert_query = """
-            INSERT INTO analysis (review, status, reason)
-            VALUES (%s, %s, %s)
-        """
-        values = (review, status, reason)
-
-        cursor.execute(insert_query, values)
-        conn.commit()
-        print(f"Review: {review}\nStatus: {answer.strip()}")
-
-    return "CSV processing completed"
-
-@app.route('/notify_csv_upload', methods=['POST'])
-def notify_csv_upload():
-    # Add your logic here to handle the trigger event
-    print("Trigger event received!")
-    return "Notification received"
-
-# if __name__ == '__main__':
-#     app.run(ssl_context='adhoc')
-
-if __name__ == '__main__':
-    app.run(ssl_context=('certificate_file.crt', 'private_key_file.key'))
-    
+openAI()

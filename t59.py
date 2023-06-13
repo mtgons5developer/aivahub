@@ -12,8 +12,6 @@ from psycopg2 import Error
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from openai.error import RateLimitError
 from google.cloud import storage
-from flask_sslify import SSLify
-
 
 from langchain import LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -23,22 +21,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-bucket_name = "schooapp2022.appspot.com"
-openai_api_key = os.getenv('OPENAI_API_KEY')
-os.environ['OPENAI_API_KEY'] = openai_api_key
-
 # Retrieve the PostgreSQL connection details from environment variables
+certfile = os.getenv('CERTFILE')
+keyfile = os.getenv('KEYFILE')
 db_host = os.getenv('HOST')
 db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('PASSWORD')
-db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
+bucket_name = os.getenv('BUCKET')
+openai_api_key = os.getenv('OPENAI_API_KEY')
+os.environ['OPENAI_API_KEY'] = openai_api_key
 
 # Create Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-# sslify = SSLify(app)  # Enable SSL with self-signed certificate
 
 # Configure Celery
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
@@ -47,27 +44,29 @@ app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
-ssl_cert_path = '/etc/nginx/dhparam.pem'
-
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
-    try:
-        conn = psycopg2.connect(
-            user=db_user,
-            password=db_password,
-            host=db_host,
-            port=db_port,
-            database=db_name,
-            # sslmode='require',
-            # sslrootcert=ssl_cert_path
-        )
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        print('Connected to Cloud SQL PostgreSQL database')
-        return conn
-    except Error as e:
-        print('Error connecting to Cloud SQL PostgreSQL database:', e)
-        return None
+    retry_count = 0
+    max_retries = 10
+    retry_delay = 5  # seconds
 
+    while retry_count < max_retries:
+        try:
+            conn = psycopg2.connect(
+                user=db_user,
+                password=db_password,
+                host=db_host,
+                port=db_port,
+                database=db_name
+            )
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            print('Connected to Cloud SQL PostgreSQL database')
+            return conn
+        except Error as e:
+            print('Error connecting to Cloud SQL PostgreSQL database:', e)
+            retry_count += 1
+            print(f'Retrying connection ({retry_count}/{max_retries})...')
+            time.sleep(retry_delay)
 
 # Connect to the database
 conn = connect_to_database()
@@ -518,8 +517,8 @@ if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
     # Create an SSL context
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    # ssl_context.load_cert_chain(certfile='/etc/ssl/aivahub-certs/server-signed-cert.pem', keyfile='/etc/ssl/aivahub-certs/server-key.pem')
-    ssl_context.load_cert_chain(certfile='/home/almedae/github/aivahub/server-signed-cert.pem', keyfile='/home/almedae/github/aivahub/server-key.pem')
+    ssl_context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+    # ssl_context.load_cert_chain(certfile='/home/almedae/github/aivahub/server-signed-cert.pem', keyfile='/home/almedae/github/aivahub/server-key.pem')
     # Run the app with SSL enabled
     app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
 
