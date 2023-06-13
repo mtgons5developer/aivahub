@@ -1,10 +1,10 @@
 import os
-import re
 import csv
+import ssl
 import sys
 import time
 import requests
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from celery import Celery
 import psycopg2
@@ -13,11 +13,9 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from openai.error import RateLimitError
 from google.cloud import storage
 from flask_sslify import SSLify
-import traceback
 
-global bucket_name, new_filename, uuid
 
-from langchain import OpenAI, LLMChain
+from langchain import LLMChain
 from langchain.chat_models import ChatOpenAI
 
 # Define the Cloud SQL PostgreSQL connection details
@@ -40,7 +38,7 @@ db_connection_name = 'review-tool-388312:us-central1-b:blackwidow'
 # Create Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-sslify = SSLify(app)  # Enable SSL with self-signed certificate
+# sslify = SSLify(app)  # Enable SSL with self-signed certificate
 
 # Configure Celery
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
@@ -60,8 +58,8 @@ def connect_to_database():
             host=db_host,
             port=db_port,
             database=db_name,
-            sslmode='require',
-            sslrootcert=ssl_cert_path
+            # sslmode='require',
+            # sslrootcert=ssl_cert_path
         )
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         print('Connected to Cloud SQL PostgreSQL database')
@@ -97,6 +95,11 @@ def completion_with_retry(prompt):
                 print(f"Rate limit exceeded. Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
 
+
+@app.route('/')
+def index():
+
+    return 'Hello, SSL!'
 
 @app.route('/upload-to-gcs', methods=['POST'])
 def upload_to_gcs():
@@ -513,9 +516,12 @@ guidelines_prompt = '''
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
-    app.run(ssl_context=('/etc/ssl/certs/nginx-selfsigned.crt', '/etc/ssl/private/nginx-selfsigned.key'), port=8443)
-    # app.run(ssl_context=('/etc/ssl/certs/ca-certificates.crt', '/etc/ssl/private/ssl-cert-snakeoil.key'), port=8443)
-    # app.run(host='192.168.0.24', port=8443, ssl_context=('server-ca.pem', 'server-key.pem'))
+    # Create an SSL context
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(certfile='/etc/ssl/aivahub-certs/server-signed-cert.pem', keyfile='/etc/ssl/aivahub-certs/server-key.pem')
 
-# sudo certbot --nginx --nginx-server-root=/opt/homebrew/etc/nginx --nginx-ctl=/opt/homebrew/etc/nginx
+    # Run the app with SSL enabled
+    app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
+
+
 
