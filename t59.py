@@ -518,8 +518,8 @@ if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
     # Create an SSL context
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain(certfile='/etc/ssl/aivahub-certs/server-signed-cert.pem', keyfile='/etc/ssl/aivahub-certs/server-key.pem')
-
+    # ssl_context.load_cert_chain(certfile='/etc/ssl/aivahub-certs/server-signed-cert.pem', keyfile='/etc/ssl/aivahub-certs/server-key.pem')
+    ssl_context.load_cert_chain(certfile='/home/almedae/github/aivahub/server-signed-cert.pem', keyfile='/home/almedae/github/aivahub/server-key.pem')
     # Run the app with SSL enabled
     app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
 
