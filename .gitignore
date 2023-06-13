@@ -30,3 +30,7 @@ private_key_file.key
 server-ca.pem
 server.pem
 csr.csr
+chat_gpt.py
+get_filename.py
+psql_connect.py
+t60.py

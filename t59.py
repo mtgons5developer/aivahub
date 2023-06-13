@@ -380,7 +380,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 status_end = answer.find("\nReason: ")
                 status = answer[:status_end].strip()
                 reason = answer[status_end:].strip()
-                print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                # print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
 
                 cursor.execute(insert_query, (status, reason))
                 conn.commit()
