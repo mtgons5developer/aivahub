@@ -22,8 +22,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Retrieve the PostgreSQL connection details from environment variables
-certfile = os.getenv('CERTFILE')
-keyfile = os.getenv('KEYFILE')
+certfile1 = os.getenv('CERTFILE')
+keyfile1 = os.getenv('KEYFILE')
 db_host = os.getenv('HOST')
 db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
@@ -517,7 +517,7 @@ if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=8443, threaded=True)
     # Create an SSL context
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+    ssl_context.load_cert_chain(certfile=certfile1, keyfile=keyfile1)
     # ssl_context.load_cert_chain(certfile='/home/almedae/github/aivahub/server-signed-cert.pem', keyfile='/home/almedae/github/aivahub/server-key.pem')
     # Run the app with SSL enabled
     app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
