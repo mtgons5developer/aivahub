@@ -4,7 +4,7 @@ import ssl
 import sys
 import time
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
 from flask_cors import CORS
 from celery import Celery
 import psycopg2
@@ -246,14 +246,10 @@ def get_gpt_data(fff_id):
 
 @app.route('/status/<string:file_id>', methods=['GET'])
 def get_status(file_id):
-
-    if file_id is None:
-        return jsonify({'error': 'File not found or no UUID on payload.'}), 404
-    elif file_id == '':
+    if file_id is None or file_id == '':
         return jsonify({'error': 'File not found or no UUID on payload.'}), 404
 
     try:
-
         # Retrieve file details from the database
         file_details = get_file_details(file_id)
 
@@ -268,14 +264,13 @@ def get_status(file_id):
             }
             return jsonify(response_data), 200
         else:
-            # return jsonify({'error': 'File not found'}), 404
             processing = {"status": "processing"}
             return jsonify(processing), 200
 
     except requests.HTTPError as error:
         if error.response.status_code == 404:
             print('404 Not Found Error: The requested URL was not found on the server.')
-            return jsonify(processing), 404
+            abort(404)
         else:
             print('An HTTP error occurred:', error)
             return jsonify(error), 403

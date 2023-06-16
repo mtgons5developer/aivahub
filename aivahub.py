@@ -164,10 +164,11 @@ def openAI():
         from langchain.prompts.prompt import PromptTemplate
 
         # Read the CSV file
-        with open("csv.csv", "r") as file:
+        with open("csv-gpt-20.csv", "r") as file:
             csv_reader = csv.DictReader(file)
             title_column = None
             body_column = None
+            ratings_column = None
 
             # Find the title and body columns
             for column in csv_reader.fieldnames:
@@ -175,10 +176,12 @@ def openAI():
                     title_column = column
                 elif column.lower() == "body":
                     body_column = column
+                elif column.lower() == "rating":
+                    ratings_column = column
 
-            # Check if the title and body columns are found
-            if title_column is None or body_column is None:
-                print("Title and/or body columns not found in the CSV file.")
+            # Check if the title, body, and ratings columns are found
+            if title_column is None or body_column is None or ratings_column is None:
+                print("Title, body, and/or ratings columns not found in the CSV file.")
                 return
 
             # Process each row in the CSV file
@@ -186,35 +189,40 @@ def openAI():
                 # Extract the title and body from the CSV row
                 title = row[title_column]
                 body = row[body_column]
+                rating = row[ratings_column]
 
-                # Combine the title and body columns with a comma separator
-                review = f"{title}, {body}"
-
-                # Create a dictionary with the extracted values
-                result = {'review': review}
-                examples = [result]
-
-                example_prompt = PromptTemplate(input_variables=["review"],
-                                        template="Review: '''{review}'''\nStatus: \nReason: ")
-
-                few_shot_template = FewShotPromptTemplate(
-                    examples=examples,
-                    example_prompt=example_prompt,
-                    prefix=guidelines_prompt,
-                    suffix="Review: '''{input}",
-                    input_variables=["input"]
-                )
+                # Check if the rating value is 4 or 5
+                if rating in ['4', '5']:
+                    continue
                 
-                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+                else:
+                    # Combine the title and body columns with a comma separator
+                    review = f"{title}, {body}"
 
-                answer = llm_chain.run(review)
-                status_end = answer.find("\nReason: ")
-                status = answer[:status_end].strip()
-                reason = answer[status_end:].strip()
-                print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                    # Create a dictionary with the extracted values
+                    result = {'review': review}
+                    examples = [result]
 
-            
-                # print(f"Review: {review}\nStatus: {answer.strip()}")
+                    example_prompt = PromptTemplate(input_variables=["review"],
+                                            template="Review: '''{review}'''\nStatus: \nReason: ")
+
+                    few_shot_template = FewShotPromptTemplate(
+                        examples=examples,
+                        example_prompt=example_prompt,
+                        prefix=guidelines_prompt,
+                        suffix="Review: '''{input}",
+                        input_variables=["input"]
+                    )
+                    
+                    llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+
+                    answer = llm_chain.run(review)
+                    status_end = answer.find("\nReason: ")
+                    status = answer[:status_end].strip()
+                    reason = answer[status_end:].strip()
+                    print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                    # print(f"Status: {status}\nReason: {reason}")
+                    quit()
 
     except IOError as e:
         print("Error reading the CSV file:", e)

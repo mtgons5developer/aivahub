@@ -45,3 +45,5 @@ generated-csr.txt
 generated-private-key.txt
 ping_alert.py
 server_bundle.crt
+nohup.out
+csv-gpt-20.csv
