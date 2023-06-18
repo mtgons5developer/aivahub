@@ -178,7 +178,7 @@ def process_csv(ff_id):
             
         response_data = {
             'status': 'complete',
-            'data': data
+            'gpt_data': data
         }
 
         return jsonify(response_data), 200
@@ -268,6 +268,10 @@ def get_status(file_id):
 
         if file_details == "completed":
             data = get_gpt_data(file_id)
+            print(data)
+            if data == None:
+                data = "CSV contains 4-5 ratings only, no data has been processed."
+
             response_data = {
                 'status': 'complete',
                 'gpt_data': data
