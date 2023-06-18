@@ -364,28 +364,32 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 body = row[body_column]
                 rating = row[ratings_column]
 
-                # Combine the title and body columns with a comma separator
-                review = f"{title}, {body}"
+                # Check if the rating value is 4 or 5
+                if rating in ['4', '5']:
+                    continue
+                
+                else:
+                    # Combine the title and body columns with a comma separator
+                    review = f"{title}, {body}"
 
-                # Create a dictionary with the extracted values
-                result = {'review': review}
-                # Convert the dictionary to a list
-                examples = [result]
+                    # Create a dictionary with the extracted values
+                    result = {'review': review}
+                    # Convert the dictionary to a list
+                    examples = [result]
 
-                example_prompt = PromptTemplate(input_variables=["review"],
-                                        template="Review: '''{review}'''\nStatus: \nReason: ")
+                    example_prompt = PromptTemplate(input_variables=["review"],
+                                            template="Review: '''{review}'''\nStatus: \nReason: ")
 
-                few_shot_template = FewShotPromptTemplate(
-                    examples=examples,
-                    example_prompt=example_prompt,
-                    prefix=guidelines_prompt,
-                    suffix="Review: '''{input}",
-                    input_variables=["input"]
-                )
+                    few_shot_template = FewShotPromptTemplate(
+                        examples=examples,
+                        example_prompt=example_prompt,
+                        prefix=guidelines_prompt,
+                        suffix="Review: '''{input}",
+                        input_variables=["input"]
+                    )
 
-                llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+                    llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-                try:
                     answer = llm_chain.run(review)
                     status_end = answer.find("\nReason: ")
                     status = answer[:status_end].strip()
@@ -394,33 +398,6 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     
                     cursor.execute(insert_query, (review, status, reason))
                     conn.commit()
-
-                # except requests.exceptions.RequestException as e:
-                #     # Handle specific exception (504 Gateway Time-out)
-                #     if isinstance(e, requests.exceptions.Timeout):
-                #         # Handle connection timeout error
-                #         print("Connection timed out.")
-                #     elif isinstance(e, requests.exceptions.HTTPError):
-                #         # Handle HTTP error (status code >= 400)
-                #         print("HTTP error:", e.response.status_code)
-                #     else:
-                #         # Handle other request exceptions
-                #         print("Error:", e)
-
-                #     # Handle other exceptions if needed
-                #     print("Error occurred:", e)                    
-
-                except urllib.error.HTTPError as e:
-                    if e.code == 504:
-                        # Handle 504 Gateway Time-out error
-                        print("504 Gateway Time-out")
-                    else:
-                        # Handle other HTTP errors
-                        print("HTTP error:", e.code)
-
-                except urllib.error.URLError as e:
-                    # Handle URL-related errors
-                    print("URL error:", e.reason)
 
         # Clean up the temporary file
         os.remove(temp_file_path)
