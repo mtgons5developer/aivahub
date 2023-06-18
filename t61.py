@@ -341,7 +341,9 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
             # Check if the title and body columns are found
             if title_column is None or body_column is None:
                 print("Title and/or body columns not found in the CSV file.")
-                return uuid
+                # return uuid
+                return jsonify({'error': 'Title and/or body columns not found in the CSV file.'}), uuid
+            
 
             insert_query = f'INSERT INTO "{uuid}" ("status", "reason") VALUES (%s, %s)'
 
@@ -397,10 +399,10 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
 
-    # finally:
-    #     # Close the connection
-    #     if conn is not None:
-    #         conn.close()
+    finally:
+        # Close the connection
+        if conn is not None:
+            conn.close()
 
 guidelines_prompt = '''
 ''Run each guideline and analyze why it was violated. Always provide a reason:
