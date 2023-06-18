@@ -320,7 +320,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
         create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
 
-        # print(bucket_name, new_filename, uuid)
+        print(bucket_name, new_filename, uuid)
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
