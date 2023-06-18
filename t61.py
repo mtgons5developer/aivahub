@@ -396,8 +396,14 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 except requests.exceptions.RequestException as e:
                     # Handle specific exception (504 Gateway Time-out)
                     if isinstance(e, requests.exceptions.Timeout):
-                        # Skip the current iteration and continue with the next iteration
-                        continue
+                        # Handle connection timeout error
+                        print("Connection timed out.")
+                    elif isinstance(e, requests.exceptions.HTTPError):
+                        # Handle HTTP error (status code >= 400)
+                        print("HTTP error:", e.response.status_code)
+                    else:
+                        # Handle other request exceptions
+                        print("Error:", e)
 
                     # Handle other exceptions if needed
                     print("Error occurred:", e)                    
