@@ -172,6 +172,8 @@ def process_csv(ff_id):
         # Call 1 to process the uploaded file
         process_csv_and_openAI(bucket_name, new_filename, ff_id)
         data = get_gpt_data(ff_id)
+        if data == "null":
+            data = "CSV contains 4-5 ratings only, no data has been processed."
         response_data = {
             'status': 'complete',
             'data': data
