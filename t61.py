@@ -318,7 +318,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
         # Create the PostgreSQL table if it doesn't exist
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
-        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "tbody", "status" VARCHAR, "reason" VARCHAR);'
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "tbody" VARCHAR, "status" VARCHAR, "reason" VARCHAR);'
 
         print(bucket_name, new_filename, uuid)
         cursor = conn.cursor()
