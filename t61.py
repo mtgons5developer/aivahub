@@ -1,3 +1,5 @@
+import urllib.request
+import urllib.error
 import os
 import csv
 import ssl
@@ -326,7 +328,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
         create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "tbody" VARCHAR, "status" VARCHAR, "reason" VARCHAR);'
 
-        print(bucket_name, new_filename, uuid)
+        # print(bucket_name, new_filename, uuid)
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
@@ -393,20 +395,32 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     cursor.execute(insert_query, (review, status, reason))
                     conn.commit()
 
-                except requests.exceptions.RequestException as e:
-                    # Handle specific exception (504 Gateway Time-out)
-                    if isinstance(e, requests.exceptions.Timeout):
-                        # Handle connection timeout error
-                        print("Connection timed out.")
-                    elif isinstance(e, requests.exceptions.HTTPError):
-                        # Handle HTTP error (status code >= 400)
-                        print("HTTP error:", e.response.status_code)
-                    else:
-                        # Handle other request exceptions
-                        print("Error:", e)
+                # except requests.exceptions.RequestException as e:
+                #     # Handle specific exception (504 Gateway Time-out)
+                #     if isinstance(e, requests.exceptions.Timeout):
+                #         # Handle connection timeout error
+                #         print("Connection timed out.")
+                #     elif isinstance(e, requests.exceptions.HTTPError):
+                #         # Handle HTTP error (status code >= 400)
+                #         print("HTTP error:", e.response.status_code)
+                #     else:
+                #         # Handle other request exceptions
+                #         print("Error:", e)
 
-                    # Handle other exceptions if needed
-                    print("Error occurred:", e)                    
+                #     # Handle other exceptions if needed
+                #     print("Error occurred:", e)                    
+
+                except urllib.error.HTTPError as e:
+                    if e.code == 504:
+                        # Handle 504 Gateway Time-out error
+                        print("504 Gateway Time-out")
+                    else:
+                        # Handle other HTTP errors
+                        print("HTTP error:", e.code)
+
+                except urllib.error.URLError as e:
+                    # Handle URL-related errors
+                    print("URL error:", e.reason)
 
         # Clean up the temporary file
         os.remove(temp_file_path)
