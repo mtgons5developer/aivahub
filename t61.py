@@ -383,19 +383,24 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
                 llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-                answer = llm_chain.run(review)
-                status_end = answer.find("\nReason: ")
-                status = answer[:status_end].strip()
-                reason = answer[status_end:].strip()
-                # print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
-                
-                # data_to_insert.append((review, status, reason))
+                try:
+                    answer = llm_chain.run(review)
+                    status_end = answer.find("\nReason: ")
+                    status = answer[:status_end].strip()
+                    reason = answer[status_end:].strip()
+                    # print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                    
+                    cursor.execute(insert_query, (review, status, reason))
+                    conn.commit()
 
-                cursor.execute(insert_query, (review, status, reason))
-                conn.commit()
+                except requests.exceptions.RequestException as e:
+                    # Handle specific exception (504 Gateway Time-out)
+                    if isinstance(e, requests.exceptions.Timeout):
+                        # Skip the current iteration and continue with the next iteration
+                        continue
 
-        # cursor.executemany(insert_query, data_to_insert)
-        # conn.commit()
+                    # Handle other exceptions if needed
+                    print("Error occurred:", e)                    
 
         # Clean up the temporary file
         os.remove(temp_file_path)
