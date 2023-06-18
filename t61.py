@@ -324,6 +324,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
+        data_to_insert = []
 
         # Insert data from the CSV file into the PostgreSQL table
         with open(temp_file_path, 'r') as csv_file:
@@ -345,11 +346,8 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
             # Check if the title, body, and ratings columns are found
             if title_column is None or body_column is None or ratings_column is None:
                 print("Title, body, and/or ratings columns not found in the CSV file.")
-                # return
-                # return uuid
                 return jsonify({'error': 'Title, body and/or rating columns not found in the CSV file.'}), uuid
             
-
             insert_query = f'INSERT INTO "{uuid}" ("tbody", "status", "reason") VALUES (%s, %s, %s)'
 
             for row in csv_reader:
@@ -384,23 +382,26 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 status = answer[:status_end].strip()
                 reason = answer[status_end:].strip()
                 print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                
+                data_to_insert.append((review, status, reason))
 
-                cursor.execute(insert_query, (review, status, reason))
-                conn.commit()
+                # cursor.execute(insert_query, (review, status, reason))
+                # conn.commit()
+
+        cursor.executemany(insert_query, data_to_insert)
+        conn.commit()
 
         # Clean up the temporary file
         os.remove(temp_file_path)
         cursor = conn.cursor()
-        # cursor.execute(
-        #     "UPDATE csv_upload SET status = %s",
-        #     ("completed",)
-        # )
+
         cursor.execute(
             "UPDATE csv_upload SET status = %s WHERE id = %s",
             ("completed", uuid)
         )        
         conn.commit()
-        return None
+        # return None
+        return jsonify({'status': 'completed'}), 200
 
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
