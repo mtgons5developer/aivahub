@@ -197,6 +197,8 @@ def insert_file_details(filename):
 
     except Error as e:
         print('Error inserting file details:', e)
+        return jsonify({'error': 'Error inserting file details'}), e
+
 
 # Define a function to retrieve file details from the database by ID
 def get_file_details(ff_idd):
@@ -217,6 +219,7 @@ def get_file_details(ff_idd):
             
     except Error as e:
         print('Error retrieving file details:', e)
+        return jsonify({'error': 'Error inserting file details'}), e
 
 def get_gpt_data(fff_id):
     try:
@@ -242,6 +245,7 @@ def get_gpt_data(fff_id):
 
     except Error as e:
         print('Error retrieving data from the table:', e)
+        return jsonify({'error': 'Error retrieving data from the table'}), e
 
 
 @app.route('/status/<string:file_id>', methods=['GET'])
@@ -273,7 +277,8 @@ def get_status(file_id):
             abort(404)
         else:
             print('An HTTP error occurred:', error)
-            return jsonify(error), 403
+            # return jsonify(error), 403
+            return jsonify({'error': 'An HTTP error occurred'}), error
         
 
 def detect_column_count(file_path):
@@ -299,6 +304,7 @@ def get_filename(ff_id):
             
     except Error as e:
         print('Error retrieving file details:', e)
+        return jsonify({'error': 'Error retrieving file details'}), e
         
 def process_csv_and_openAI(bucket_name, new_filename, uuid):
     try:
@@ -381,15 +387,15 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 status_end = answer.find("\nReason: ")
                 status = answer[:status_end].strip()
                 reason = answer[status_end:].strip()
-                print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                # print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
                 
-                data_to_insert.append((review, status, reason))
+                # data_to_insert.append((review, status, reason))
 
-                # cursor.execute(insert_query, (review, status, reason))
-                # conn.commit()
+                cursor.execute(insert_query, (review, status, reason))
+                conn.commit()
 
-        cursor.executemany(insert_query, data_to_insert)
-        conn.commit()
+        # cursor.executemany(insert_query, data_to_insert)
+        # conn.commit()
 
         # Clean up the temporary file
         os.remove(temp_file_path)
@@ -405,6 +411,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
+        return jsonify({'error': 'Error connecting to PostgreSQL'}), 500
 
     # finally:
     #     # Close the connection
