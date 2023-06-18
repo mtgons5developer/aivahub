@@ -252,11 +252,11 @@ def get_status(file_id):
     try:
         # Retrieve file details from the database
         file_details = get_file_details(file_id)
-
+        print(file_details)
         # Remove special characters and convert to lowercase
-        formatted_status = file_details.lower()
+        # formatted_status = file_details.lower()
 
-        if formatted_status == "completed":
+        if file_details == "completed":
             data = get_gpt_data(file_id)
             response_data = {
                 'status': 'complete',
@@ -332,17 +332,22 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
             # Find the title and body columns
             title_column = None
             body_column = None
+            ratings_column = None
+            
             for column in csv_reader.fieldnames:
                 if column.lower() == "title":
                     title_column = column
                 elif column.lower() == "body":
                     body_column = column
+                elif column.lower() == "rating":
+                    ratings_column = column
 
-            # Check if the title and body columns are found
-            if title_column is None or body_column is None:
-                print("Title and/or body columns not found in the CSV file.")
+            # Check if the title, body, and ratings columns are found
+            if title_column is None or body_column is None or ratings_column is None:
+                print("Title, body, and/or ratings columns not found in the CSV file.")
+                # return
                 # return uuid
-                return jsonify({'error': 'Title and/or body columns not found in the CSV file.'}), uuid
+                return jsonify({'error': 'Title, body and/or rating columns not found in the CSV file.'}), uuid
             
 
             insert_query = f'INSERT INTO "{uuid}" ("status", "reason") VALUES (%s, %s)'
@@ -351,6 +356,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 # Extract the title and body from the CSV row
                 title = row[title_column]
                 body = row[body_column]
+                rating = row[ratings_column]
 
                 # Combine the title and body columns with a comma separator
                 review = f"{title}, {body}"
@@ -399,10 +405,10 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
 
-    finally:
-        # Close the connection
-        if conn is not None:
-            conn.close()
+    # finally:
+    #     # Close the connection
+    #     if conn is not None:
+    #         conn.close()
 
 guidelines_prompt = '''
 ''Run each guideline and analyze why it was violated. Always provide a reason:
