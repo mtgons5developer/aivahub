@@ -318,7 +318,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
         # Create the PostgreSQL table if it doesn't exist
         # create_table_query = f'CREATE TABLE IF NOT EXISTS "{row_id}" (id SERIAL PRIMARY KEY,status TEXT,reason TEXT);'                  
-        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "status" VARCHAR, "reason" VARCHAR);'
+        create_table_query = f'CREATE TABLE IF NOT EXISTS "{uuid}" (id SERIAL PRIMARY KEY, "tbody", "status" VARCHAR, "reason" VARCHAR);'
 
         print(bucket_name, new_filename, uuid)
         cursor = conn.cursor()
@@ -350,7 +350,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 return jsonify({'error': 'Title, body and/or rating columns not found in the CSV file.'}), uuid
             
 
-            insert_query = f'INSERT INTO "{uuid}" ("status", "reason") VALUES (%s, %s)'
+            insert_query = f'INSERT INTO "{uuid}" ("tbody", "status", "reason") VALUES (%s, %s, %s)'
 
             for row in csv_reader:
                 # Extract the title and body from the CSV row
@@ -385,7 +385,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                 reason = answer[status_end:].strip()
                 print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
 
-                cursor.execute(insert_query, (status, reason))
+                cursor.execute(insert_query, (review, status, reason))
                 conn.commit()
 
         # Clean up the temporary file
@@ -525,5 +525,14 @@ if __name__ == '__main__':
     # Run the app with SSL enabled
     app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
 
+# Everyone can use these!	Thought these would be a perfect gift for my brother, who is a big fan of making pulled pork. 
+# After reading other reviews, I realized I could use these for salad - so got a pair for myself too! Bottom line: 
+# These kitchen claws are a multi-purpose kitchen tool that everyone will use.Super quick delivery, and easy to clean too.  
+# I'd recommend to any and all!
 
 
+# I bought this set for my husband who loves to cook and BBQ. He loves it!!	
+# I bought this set for my husband who loves to cook and BBQ. He loves it!! It is so easy to use and clean. 
+# Will certainly be considering this for future gifts :-) Company is also fantastic, 
+# sent along some really great recipes we are looking forward to trying out. 
+# Highly recommend this product and this company! Cheers, Lori :-)
