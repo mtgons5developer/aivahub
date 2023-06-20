@@ -164,7 +164,7 @@ def openAI():
         from langchain.prompts.prompt import PromptTemplate
 
         # Read the CSV file
-        with open("csv-gpt-20.csv", "r") as file:
+        with open("csv/csv-gpt-20.csv", "r") as file:
             csv_reader = csv.DictReader(file)
             title_column = None
             body_column = None
@@ -220,8 +220,23 @@ def openAI():
                     status_end = answer.find("\nReason: ")
                     status = answer[:status_end].strip()
                     reason = answer[status_end:].strip()
-                    print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                    # print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
                     # print(f"Status: {status}\nReason: {reason}")
+
+                    response_type = ""
+
+                    if "allowed" in status.lower():
+                        response_type = "NO"
+                    elif "clear" in status.lower():
+                        response_type = "NO"
+                    elif "fine" in status.lower():
+                        response_type = "NO"
+                    elif "does not violate" in status.lower():
+                        response_type = "NO"
+
+                    print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {response_type}")
+
+
                     quit()
 
     except IOError as e:

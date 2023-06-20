@@ -241,8 +241,8 @@ def get_gpt_data(fff_id):
             for row in rows:
                 data = {
                     'id': row[0],
-                    'status': row[1],
-                    'reason': row[2],
+                    'status': row[2],
+                    'reason': row[1],
                     # Add more columns as needed
                 }
                 result.append(data)
