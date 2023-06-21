@@ -204,7 +204,7 @@ def openAI():
                     examples = [result]
 
                     example_prompt = PromptTemplate(input_variables=["review"],
-                                            template="Review: '''{review}'''\nStatus: \nReason: ")
+                                            template="Review: '''{review}'''\nReason: ")
 
                     few_shot_template = FewShotPromptTemplate(
                         examples=examples,
@@ -220,24 +220,36 @@ def openAI():
                     status_end = answer.find("\nReason: ")
                     status = answer[:status_end].strip()
                     reason = answer[status_end:].strip()
-                    # print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
+                    print(f"Review: {review}\nStatus: {status}\nReason: {reason}")
                     # print(f"Status: {status}\nReason: {reason}")
 
-                    response_type = ""
+                    # response_type = ""
 
-                    if "allowed" in status.lower():
-                        response_type = "NO"
-                    elif "clear" in status.lower():
-                        response_type = "NO"
-                    elif "fine" in status.lower():
-                        response_type = "NO"
-                    elif "does not violate" in status.lower():
-                        response_type = "NO"
+                    # if "allowed" in status.lower():
+                    #     response_type = "NO"
+                    # elif "clear" in status.lower():
+                    #     response_type = "NO"
+                    # elif "fine" in status.lower():
+                    #     response_type = "NO"
+                    # elif "does not violate" in status.lower():
+                    #     response_type = "NO"
+                    # elif "not violating" in status.lower():
+                    #     response_type = "NO"
+                    # elif "not in violation" in status.lower():
+                    #     response_type = "NO"                    
+                    # elif "no violation" in status.lower():
+                    #     response_type = "NO"                    
+                    # elif "violates" in status.lower():
+                    #     response_type = "YES"
 
-                    print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {response_type}")
+                    # if response_type == None:
+                    #     print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {response_type}")
+                    #     quit()
+
+                    # print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {response_type}")
 
 
-                    quit()
+                    # quit()
 
     except IOError as e:
         print("Error reading the CSV file:", e)
