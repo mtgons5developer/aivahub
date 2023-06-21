@@ -240,9 +240,10 @@ def get_gpt_data(fff_id):
             result = []
             for row in rows:
                 data = {
-                    'id': row[0],
+                    # 'id': row[0],
                     'status': row[2],
-                    'reason': row[1],
+                    'reason': row[3],
+                    'result': row[4],
                     # Add more columns as needed
                 }
                 result.append(data)
