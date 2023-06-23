@@ -247,7 +247,13 @@ def openAI():
                     reason_end = answer.find("\nResult:")
                     reason = answer[reason_start + len("Reason:"):reason_end].strip()
                     result_start = answer.find("Result:")
-                    result = answer[result_start + len("Result:"):].strip()
+                    result = answer[result_start + len("Result:"):].strip().lower()
+
+                    if result.endswith('.'):
+                        result = result[:-1]  # Remove the period at the end
+
+                    if "(maybe)" in result:
+                        result = result.replace(" (maybe)", "")
 
                     print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {result}")                
                     # print(f"Row {i} - Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {result}")
