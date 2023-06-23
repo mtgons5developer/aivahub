@@ -243,7 +243,7 @@ def get_gpt_data(fff_id):
                     # 'id': row[0],
                     'status': row[2],
                     'reason': row[3],
-                    'result': row[4],
+                    'result': row[4].lower(),
                     # Add more columns as needed
                 }
                 result.append(data)
