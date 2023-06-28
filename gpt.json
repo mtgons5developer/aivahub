@@ -1,0 +1,56 @@
+[
+    {
+        "review": "The product arrived in good condition, but I had a bad experience with the seller. They didn't respond to my messages and it took longer than expected to receive the product.",
+        "status": "Violation",
+        "reason": "Seller, order, or shipping feedback",
+        "result": "yes"
+    },
+    {
+        "review": "The product was fine, but the order was mixed up and I received the wrong color. The seller was helpful in resolving the issue, but it was still a hassle.",
+        "status": "Violation",
+        "reason": "Seller, order, or shipping feedback",
+        "result": "yes"
+    },
+    {
+        "review": "The product was good, but the shipping cost was too high. It made the overall purchase more expensive than I had anticipated.",
+        "status": "Violation",
+        "reason": "Seller, order, or shipping feedback",
+        "result": "yes"
+    },
+    {
+        "review": "The product is decent, but I found a similar one for a lower price. It's not worth paying extra for this brand.",
+        "status": "Violation",
+        "reason": "Comments about pricing or availability",
+        "result": "yes"
+    },
+    {
+        "review": "The product was out of stock for a while and I had to wait for it to become available again. It was frustrating, but I'm glad I finally got it.",
+        "status": "Violation",
+        "reason": "Comments about pricing or availability",
+        "result": "yes"
+    },
+    {
+        "review": "It didn't fit as advertised and seems to be for a much smaller baby than the sizing claims.",
+        "status": "Compliant",
+        "reason": "No violation of Amazon guidelines",
+        "result": "no"
+    },
+    {
+        "review": "Bu ürünü bir inceleme karşılığında ücretsiz aldım, bu yüzden görüşümü tuzla buz etmek istemeyebilirsiniz. Ürün iyi, ancak tam fiyatını öder miydim emin değilim.",
+        "status": "Violation",
+        "reason": "Content written in unsupported languages",
+        "result": "yes"
+    },
+    {
+        "review": "My order didn’t do what I wanted </3 _(ツ)_/ ",
+        "status": "Violation",
+        "reason": "Repetitive text, spam, or pictures created with symbols",
+        "result": "yes"
+    },
+    {
+        "review": "The product was fine, but I want more information. Call me at 123-456-7890..",
+        "status": "Violation",
+        "reason": "Private information",
+        "result": "yes"
+    }
+]
