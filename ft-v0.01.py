@@ -1,46 +1,79 @@
 import os
 import csv
 import traceback
-import time
-from openai.error import RateLimitError
-import openai
-
+import json
+import torch
+import torch.nn as nn
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
 
-from create_env import create
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-openai.openai_api_key = os.getenv('OPENAI_API_KEY')
-os.environ['OPENAI_API_KEY'] = openai.openai_api_key
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-chat_llm = ChatOpenAI(temperature=0.8)
-
-def completion_with_retry(prompt):
-    retry_delay = 1.0
-    max_retries = 3
-    retries = 0
-
-    while True:
-        try:
-            return chat_llm.completion(prompt)
-        except RateLimitError as e:
-            if retries >= max_retries:
-                raise e
-            else:
-                retries += 1
-                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
+# Load the pre-trained GPT model and tokenizer
+model_name = 'gpt2'  # or 'gpt2-medium', 'gpt2-large', 'gpt2-xl' for larger models
+model = GPT2LMHeadModel.from_pretrained(model_name).to(device)
+tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 
 with open('guidelines.txt', 'r') as file:
     data = file.read()
 
 guidelines_prompt = data
 
+file_path = "gpt.json"  # Replace with the actual file path
+
+# Read the data from the JSON file
+with open(file_path, 'r') as file:
+    content = file.read()
+    data = json.loads(content)
+
+examples = data
+
+chat_llm = ChatOpenAI(temperature=0.8)
+
+def fine_tune_gpt(file_path, epochs=1, learning_rate=1e-5):
+    # Read the dataset file
+    with open(file_path, 'r') as file:
+        data = file.read()
+
+    # Tokenize the dataset
+    tokenized_data = tokenizer.encode(data, add_special_tokens=True)
+
+    # Convert the tokenized data to PyTorch tensors
+    inputs = torch.tensor(tokenized_data[:-1]).unsqueeze(0).to(device)
+    labels = torch.tensor(tokenized_data[1:]).unsqueeze(0).to(device)
+
+    # Create the optimizer and loss function
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    criterion = nn.CrossEntropyLoss()
+
+    # Fine-tuning loop
+    model.train()
+    for epoch in range(epochs):
+        optimizer.zero_grad()
+        outputs = model(inputs, labels=labels)
+        loss = criterion(outputs.logits.view(-1, outputs.logits.size(-1)), labels.view(-1))
+        loss.backward()
+        optimizer.step()
+
+        print(f"Epoch {epoch + 1}/{epochs} - Loss: {loss.item()}")
+
+    # Save the fine-tuned model
+    save_dir = os.path.dirname(os.path.realpath(__file__))
+    save_path = os.path.join(save_dir, 'fine_tuned_model.pt')
+    torch.save(model.state_dict(), save_path)
+    print(f"Fine-tuned model saved to: {save_path}")
+
 def openAI():
     try:
+        # Fine-tune the GPT model
+        # fine_tune_gpt('gpt.txt', epochs=3, learning_rate=1e-5)
+
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
 
@@ -66,7 +99,7 @@ def openAI():
                 return
 
             # Open a file for writing the formatted reviews and reasons
-            with open("gpt-4-0314.txt", "w") as output_file:
+            with open("gpt.txt", "a") as output_file:
                 # Process each row in the CSV file
                 for i, row in enumerate(csv_reader, start=1):
 
@@ -122,8 +155,6 @@ def openAI():
                         # output_file.write(str(i) + " " + answer)
                         output_file.write("\n")
 
-
-
     except IOError as e:
         print("Error reading the CSV file:", e)
 
@@ -131,8 +162,4 @@ def openAI():
         print("An error occurred:", e)
         traceback.print_exc()
 
-
-
-# review = sheet()
-# create()
 openAI()

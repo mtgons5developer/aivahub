@@ -1,165 +1,201 @@
-import os
-import csv
-import traceback
-import json
 import torch
-import torch.nn as nn
-from langchain import OpenAI, LLMChain
-from langchain.chat_models import ChatOpenAI
-
+import pandas as pd
+from torch.utils.data import Dataset, DataLoader
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-
-from dotenv import load_dotenv
-
-load_dotenv()
+from guide import guidelines_prompt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load the pre-trained GPT model and tokenizer
-model_name = 'gpt2'  # or 'gpt2-medium', 'gpt2-large', 'gpt2-xl' for larger models
+# Function to check if a review complies with the guidelines
+def check_compliance(review, guidelines):
+    # Access the guidelines_prompt within the function
+    guidelines = guidelines_prompt
+
+    # Check compliance for each guideline in the guidelines prompt
+    for guideline in guidelines.split("\n\n"):
+        guideline_lines = guideline.strip().split("\n")
+        guideline_title = guideline_lines[0]
+        guideline_keywords = guideline_lines[2:]
+
+        # Check if any of the guideline keywords are present in the review
+        if any(keyword in review.lower() for keyword in guideline_keywords):
+            compliance_status = False
+            violation_details.append(f"Violation: {guideline_title}")
+            
+    # Implement the logic to check compliance based on the guidelines
+    compliance_status = True  # Assume initial compliance status as True
+    violation_details = []
+
+    # Check compliance for guideline 1: Seller, Order, or Shipping Feedback
+    if any(keyword in review for keyword in ["seller", "order", "shipping"]):
+        compliance_status = False
+        violation_details.append("Violation: Seller, Order, or Shipping Feedback")
+
+    # Check compliance for guideline 2: Comments about Pricing or Availability
+    if any(keyword in review for keyword in ["pricing", "availability"]):
+        compliance_status = False
+        violation_details.append("Violation: Comments about Pricing or Availability")
+
+    # Check compliance for guideline 3: Content written in unsupported languages
+    if any(keyword in review for keyword in ["French", "German", "Italian", "Portuguese"]):
+        compliance_status = False
+        violation_details.append("Violation: Content written in unsupported languages")
+
+    # Check compliance for guideline 4: Repetitive Text, Spam, or Pictures Created with Symbols
+    if any(keyword in review for keyword in ["repetitive", "spam", "symbols"]):
+        compliance_status = False
+        violation_details.append("Violation: Repetitive Text, Spam, or Pictures Created with Symbols")
+
+    # Check compliance for guideline 5: Private Information
+    if any(keyword in review for keyword in ["phone number", "email address", "mailing address"]):
+        compliance_status = False
+        violation_details.append("Violation: Private Information")
+
+    # Check compliance for guideline 6: Profanity or Harassment
+    if any(keyword in review for keyword in ["profanity", "harassment"]):
+        compliance_status = False
+        violation_details.append("Violation: Profanity or Harassment")
+
+    # Check compliance for guideline 7: Hate Speech
+    if any(keyword in review for keyword in ["hate speech", "discrimination"]):
+        compliance_status = False
+        violation_details.append("Violation: Hate Speech")
+
+    # Check compliance for guideline 8: Sexual Content
+    if any(keyword in review for keyword in ["sexual content", "nudity"]):
+        compliance_status = False
+        violation_details.append("Violation: Sexual Content")
+
+    # Check compliance for guideline 9: External Links
+    if "http://" in review or "https://" in review:
+        compliance_status = False
+        violation_details.append("Violation: External Links")
+
+    # Check compliance for guideline 10: Ads or Promotional Content
+    if "promotion" in review or "advertising" in review:
+        compliance_status = False
+        violation_details.append("Violation: Ads or Promotional Content")
+
+    # Check compliance for guideline 11: Conflicts of Interest
+    if any(keyword in review for keyword in ["conflict of interest", "self-promotion"]):
+        compliance_status = False
+        violation_details.append("Violation: Conflicts of Interest")
+
+    # Check compliance for guideline 12: Solicitations
+    if any(keyword in review for keyword in ["solicitation", "compensation"]):
+        compliance_status = False
+        violation_details.append("Violation: Solicitations")
+
+    # Check compliance for guideline 13: Plagiarism, Infringement, or Impersonation
+    if any(keyword in review for keyword in ["plagiarism", "infringement", "impersonation"]):
+        compliance_status= False
+        violation_details.append("Violation: Plagiarism, Infringement, or Impersonation")
+
+    # Check compliance for guideline 14: Illegal Activities
+    if any(keyword in review for keyword in ["illegal activities", "violence", "fraud"]):
+        compliance_status = False
+        violation_details.append("Violation: Illegal Activities")
+
+    # Return the compliance status and violation details as a dictionary
+    return {
+        'compliance_status': compliance_status,
+        'violation_details': violation_details
+    }
+
+
+# Define a custom dataset class to load the data from the CSV file
+class CustomDataset(Dataset):
+    def __init__(self, csv_file, tokenizer, max_length):
+        self.data = pd.read_csv(csv_file)
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        title = str(self.data.iloc[index]['Title'])
+        body = str(self.data.iloc[index]['Body'])
+
+        combined_text = f"{title} {body}"  # Combine title and body
+
+        # Check compliance for the combined text
+        compliance = check_compliance(combined_text, guidelines_prompt)
+
+        encoded_input = self.tokenizer.encode_plus(
+            combined_text,
+            truncation=True,
+            return_tensors='pt'
+        )
+
+        input_ids = encoded_input['input_ids'].squeeze()
+        attention_mask = encoded_input['attention_mask'].squeeze()
+        labels = input_ids.clone()
+
+        # Adjust the max_length based on the input sequence length
+        max_length = min(self.max_length, input_ids.size(0))
+
+        # Pad or truncate the input sequences to the adjusted max_length
+        input_ids = input_ids[:max_length]
+        attention_mask = attention_mask[:max_length]
+        labels = labels[:max_length]
+
+        # Pad the sequences if necessary
+        padding_length = self.max_length - input_ids.size(0)
+        input_ids = torch.nn.functional.pad(input_ids, (0, padding_length), value=self.tokenizer.pad_token_id)
+        attention_mask = torch.nn.functional.pad(attention_mask, (0, padding_length), value=0)
+        labels = torch.nn.functional.pad(labels, (0, padding_length), value=-100)
+
+        return {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'labels': labels,
+            'compliance': compliance
+        }
+
+
+
+def train_model(model, dataloader, optimizer, device):
+    model.train()
+    total_loss = 0
+    for batch in dataloader:
+        input_ids = batch['input_ids'][:, :-1].to(device)
+        labels = batch['input_ids'][:, 1:].to(device)
+        outputs = model.forward(input_ids=input_ids, labels=labels)
+        loss = outputs.loss
+        total_loss += loss.item()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    return total_loss / len(dataloader)
+
+
+# Load the model and tokenizer
+model_name = 'gpt2-large'
 model = GPT2LMHeadModel.from_pretrained(model_name).to(device)
 tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 
-with open('guidelines.txt', 'r') as file:
-    data = file.read()
+# Set the padding token
+tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
-guidelines_prompt = data
+# Create the dataset and dataloader
+csv_file = 'csv/B00UFJNVTS - Heat Resistant Oven Mitts (2 pack)_ High Temperatu 2023-06-07.csv'
+max_length = 2048  # Set the maximum sequence length
+dataset = CustomDataset(csv_file, tokenizer, max_length)
+dataset = [data for data in dataset if data is not None]
 
-file_path = "gpt.json"  # Replace with the actual file path
+# Calculate and print the maximum sequence length
+max_length = max(len(data['input_ids']) for data in dataset)
+print(f"Maximum sequence length: {max_length}")
 
-# Read the data from the JSON file
-with open(file_path, 'r') as file:
-    content = file.read()
-    data = json.loads(content)
+dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
 
-examples = data
+# Training loop
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+num_epochs = 5
 
-chat_llm = ChatOpenAI(temperature=0.8)
+for epoch in range(num_epochs):
+    loss = train_model(model, dataloader, optimizer, device)
+    print(f"Epoch: {epoch+1} - Loss: {loss}")
 
-def fine_tune_gpt(file_path, epochs=1, learning_rate=1e-5):
-    # Read the dataset file
-    with open(file_path, 'r') as file:
-        data = file.read()
 
-    # Tokenize the dataset
-    tokenized_data = tokenizer.encode(data, add_special_tokens=True)
-
-    # Convert the tokenized data to PyTorch tensors
-    inputs = torch.tensor(tokenized_data[:-1]).unsqueeze(0).to(device)
-    labels = torch.tensor(tokenized_data[1:]).unsqueeze(0).to(device)
-
-    # Create the optimizer and loss function
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    criterion = nn.CrossEntropyLoss()
-
-    # Fine-tuning loop
-    model.train()
-    for epoch in range(epochs):
-        optimizer.zero_grad()
-        outputs = model(inputs, labels=labels)
-        loss = criterion(outputs.logits.view(-1, outputs.logits.size(-1)), labels.view(-1))
-        loss.backward()
-        optimizer.step()
-
-        print(f"Epoch {epoch + 1}/{epochs} - Loss: {loss.item()}")
-
-    # Save the fine-tuned model
-    save_dir = os.path.dirname(os.path.realpath(__file__))
-    save_path = os.path.join(save_dir, 'fine_tuned_model.pt')
-    torch.save(model.state_dict(), save_path)
-    print(f"Fine-tuned model saved to: {save_path}")
-
-def openAI():
-    try:
-        # Fine-tune the GPT model
-        fine_tune_gpt('gpt.txt', epochs=3, learning_rate=1e-5)
-
-        from langchain.prompts.few_shot import FewShotPromptTemplate
-        from langchain.prompts.prompt import PromptTemplate
-
-        # Read the CSV file
-        with open("csv/B00UFJNVTS - Heat Resistant Oven Mitts (2 pack)_ High Temperatu 2023-06-07.csv", "r") as file:
-            csv_reader = csv.DictReader(file)
-            title_column = None
-            body_column = None
-            ratings_column = None
-
-            # Find the title and body columns
-            for column in csv_reader.fieldnames:
-                if column.lower() == "title":
-                    title_column = column
-                elif column.lower() == "body":
-                    body_column = column
-                elif column.lower() == "rating":
-                    ratings_column = column
-
-            # Check if the title, body, and ratings columns are found
-            if title_column is None or body_column is None or ratings_column is None:
-                print("Title, body, and/or ratings columns not found in the CSV file.")
-                return
-
-            # Open a file for writing the formatted reviews and reasons
-            with open("gpt.txt", "a") as output_file:
-                # Process each row in the CSV file
-                for i, row in enumerate(csv_reader, start=1):
-
-                    # Extract the title and body from the CSV row
-                    title = row[title_column]
-                    body = row[body_column]
-                    rating = row[ratings_column]
-
-                    # Check if the title or body is None
-                    if title is None or body is None:
-                        continue
-
-                    # Check if the rating value is 4 or 5
-                    elif rating in ['4', '5']:
-                        continue
-
-                    else:
-                        # Combine the title and body columns with a comma separator
-                        review = f"{title}, {body}"
-
-                        # Create a dictionary with the extracted values
-                        result = {'review': review}
-                        examples = [result]
-
-                        example_prompt = PromptTemplate(
-                            input_variables=["review"],
-                            template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
-                        )
-
-                        few_shot_template = FewShotPromptTemplate(
-                            examples=examples,
-                            example_prompt=example_prompt,
-                            prefix=guidelines_prompt,
-                            suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
-                            input_variables=["input"]
-                        )
-
-                        llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
-
-                        answer = llm_chain.run(review)
-                        print(str(i) + " " + answer + '\n')
-
-                        lines = answer.split("\n")
-                        status = lines[0].replace("Status:", "").strip()
-                        reason = lines[1].replace("Reason:", "").strip()
-                        result = lines[2].replace("Result:", "").strip().lower()
-
-                        # Format the review and reason into a JSON string
-                        formatted_review = f'{{"review": "{review}", "reason": "{reason}", "status": "{status}", "result": "{result}"}}'
-
-                        print(formatted_review)
-                        output_file.write(formatted_review)
-                        # output_file.write(str(i) + " " + answer)
-                        output_file.write("\n")
-
-    except IOError as e:
-        print("Error reading the CSV file:", e)
-
-    except Exception as e:
-        print("An error occurred:", e)
-        traceback.print_exc()
-
-openAI()

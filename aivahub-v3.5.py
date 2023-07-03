@@ -165,9 +165,9 @@ guidelines_prompt = '''
     Encouraging the dangerous misuse of a product is strictly prohibited.
     Why? Upholding legal and ethical standards is of utmost importance. By prohibiting content that promotes illegal activities, harm, or fraud, we maintain a safe and trustworthy community where users can engage responsibly and contribute to meaningful discussions.
 
-    ```
-    Only state Compliant or Violation for Status:
-    If Compliant set Result: 'NO', don't add anything. If in Violation set Result: 'YES', don't add anything. The "Result" is assigned as "Maybe" to convey uncertainty or ambiguity.'''
+    Must contain: Only state Compliant or Violation for Status, don't explain further.
+    Must contain: State why it was in Violation or why it is Compliant as Reason:
+    Must contain: If Compliant set Result: 'NO', don't add anything. If in Violation set Result: 'YES', don't add anything. The "Result" is assigned as "Maybe" to convey uncertainty or ambiguity.'''
 '''
 '''''''''
 
@@ -239,7 +239,8 @@ def openAI():
                         llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
                         answer = llm_chain.run(review)
-                        answer = answer.replace("'''", "")
+                        # answer = answer.replace("'''", "")
+                        print(answer + "\n")
 
                         status_start = answer.find("Status:")
                         status_end = answer.find("\nReason:")
@@ -250,18 +251,18 @@ def openAI():
                         result_start = answer.find("Result:")
                         result = answer[result_start + len("Result:"):].strip().lower()
 
-                        if result.endswith('.'):
-                            result = result[:-1]  # Remove the period at the end
+                        # if result.endswith('.'):
+                        #     result = result[:-1]  # Remove the period at the end
 
-                        if "(maybe)" in result:
-                            result = result.replace(" (maybe)", "")
+                        # if "(maybe)" in result:
+                        #     result = result.replace(" (maybe)", "")
 
                         formatted_review = f'{{"prompt": "Review: \'{review}\'\\nStatus: {status}\\nReason: {reason}\\nResult: {result}"}}'
+                        print(formatted_review + "\n")
+                        # output_file.write(formatted_review)
+                        # output_file.write("\n")
 
-                        output_file.write(formatted_review)
-                        output_file.write("\n")
-
-                        print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {result}")
+                        # print(f"Review: {review}\nStatus: {status}\nReason: {reason}\nResult: {result}")
 
 
     except IOError as e:

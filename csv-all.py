@@ -16,11 +16,6 @@ def extract_columns(csv_file_path, output_file_path):
                 row["reason"] = "N/A"
                 row["result"] = "N/A"
                 output_rows.append(row)
-            else:
-                row["status"] = ""
-                row["reason"] = ""
-                row["result"] = ""
-                output_rows.append(row)
 
     # Write the output_rows to the output file
     with open(output_file_path, 'w', newline='') as output_file:

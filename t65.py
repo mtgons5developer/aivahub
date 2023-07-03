@@ -383,8 +383,14 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
                 # Check if the rating value is 4 or 5
                 elif rating in ['4', '5']:
-                    continue
-                
+                    status = "N/A"
+                    reason = "N/A"
+                    result = "N/A"
+                    # Combine the title and body columns with a comma separator
+                    review = f"{title}, {body}"
+
+                    cursor.execute(insert_query, (review, status, reason, result))
+                    conn.commit()                
                 else:
                     # Combine the title and body columns with a comma separator
                     review = f"{title}, {body}"
@@ -412,7 +418,14 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     lines = answer.split("\n")
                     status = lines[0].replace("Status:", "").strip()
                     reason = lines[1].replace("Reason:", "").strip()
-                    result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
+                    # result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
+                    try:
+                        result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
+                    except IndexError:
+                        result = None                    
+
+                    if status == "In Violation":
+                        status = "Violation"
 
                     if result is None:
                         if status == "Compliant":
@@ -451,9 +464,8 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
 if __name__ == '__main__':
     # Create an SSL context
-    # ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    # ssl_context.load_cert_chain(certfile=certfile1, keyfile=keyfile1)
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(certfile=certfile1, keyfile=keyfile1)
     # Run the app with SSL enabled
-    # app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
-    app.run(host='0.0.0.0', port=8443, threaded=True)
-
+    app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
+    # app.run(host='0.0.0.0', port=8443, threaded=True)
