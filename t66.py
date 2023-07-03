@@ -449,10 +449,6 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         print("Error connecting to PostgreSQL:", e)
         return jsonify({'error': 'Error connecting to PostgreSQL'}), 500
 
-    # finally:
-    #     # Close the connection
-    #     if conn is not None:
-    #         conn.close()
 
 if __name__ == '__main__':
     # Create an SSL context
