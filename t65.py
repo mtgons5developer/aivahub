@@ -38,6 +38,14 @@ os.environ['OPENAI_API_KEY'] = openai_api_key
 
 # Create Flask app
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# Configure Celery
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
 
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
