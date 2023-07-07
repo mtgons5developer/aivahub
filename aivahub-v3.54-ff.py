@@ -59,8 +59,6 @@ if conn is None:
     print('Unable to connect to the database. Exiting...')
     sys.exit(1)
 
-chat_llm = ChatOpenAI(temperature=0)
-
 # Create a cursor to execute SQL queries
 cursor = conn.cursor()
 # query = "SELECT * FROM tune_data2"
@@ -177,19 +175,22 @@ def openAI():
                             input_variables=["input"]
                         )
 
+                        chat_llm = ChatOpenAI(temperature=0)
                         llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
-
-                        answer = llm_chain.run(review)
-                        print(str(i+1) + " " + answer + '\n')
-                        # quit()
 
                         # Run the code again if the status is empty
                         if not status:
                             answer = llm_chain.run(review)
                             print(str(i) + " " + answer + '\n')
-                        # else:
-                            # print(str(i) + " Status already exists: " + status)
-                            # status = "SKIP"
+
+                        elif status == "NaN":
+                            answer = llm_chain.run(review)
+                            print(str(i) + " " + answer + '\n')
+
+                        else:
+                            answer = llm_chain.run(review)
+                            print(str(i+1) + " " + answer + '\n')
+                            # quit()          
 
                         # lines = answer.split("\n")
                         # status = lines[0].replace("Status:", "").strip()
