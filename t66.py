@@ -2,6 +2,7 @@ import urllib.request
 import urllib.error
 import os
 import csv
+import json
 import ssl
 import sys
 import time
@@ -38,6 +39,14 @@ os.environ['OPENAI_API_KEY'] = openai_api_key
 
 # Create Flask app
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# Configure Celery
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
 
 # Connect to the Cloud SQL PostgreSQL database
 def connect_to_database():
@@ -73,22 +82,61 @@ if conn is None:
 
 chat_llm = ChatOpenAI(temperature=0.8)
 
-def completion_with_retry(prompt):
-    retry_delay = 1.0
-    max_retries = 3
-    retries = 0
+# Create a cursor to execute SQL queries
+cursor = conn.cursor()
+query = "SELECT * FROM tune_data2"
+cursor.execute(query)
+# Fetch all the rows from the result set
+rows = cursor.fetchall()
+# Create a list to store the JSON objects
+data = []
+# Format the rows as JSON objects and append them to the data list
+for row in rows:
+    json_obj = {
+        'review': row[6],
+        'reason': row[0],
+        'reason': row[4],
+        'status': row[1],
+        'status': row[5],
+        'result': row[2],
+        'result': row[6]       
+    }
+    data.append(json_obj)
 
-    while True:
-        try:
-            return chat_llm.chat(prompt).get('choices')[0]['message']['content']
-        except RateLimitError as e:
-            if retries >= max_retries:
-                raise e
-            else:
-                retries += 1
-                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
+# Convert the data list to JSON format
+# examples = json.dumps(data, indent=4, ensure_ascii=False)
+print(data)
+quit()
 
+examples = [
+    {'review': "The product arrived in good condition, but I had a bad experience with the seller. They didn't respond to my messages and it took longer than expected to receive the product.", 
+     'status': 'Violation', 
+     'reason': 'Seller, order, or shipping feedback'},
+    {'review': "The product was fine, but the order was mixed up and I received the wrong color. The seller was helpful in resolving the issue, but it was still a hassle.", 
+     'status': 'violation', 
+     'reason': 'Seller, order, or shipping feedback'},
+    {'review': "The product was good, but the shipping cost was too high. It made the overall purchase more expensive than I had anticipated.", 
+     'status': 'violation', 
+     'reason': 'Seller, order, or shipping feedback'},
+    {'review': "The product is decent, but I found a similar one for a lower price. It's not worth paying extra for this brand.",
+     'status': 'Violation',
+     'reason': 'Comments about pricing or availability'},
+    {'review': "The product was out of stock for a while and I had to wait for it to become available again. It was frustrating, but I'm glad I finally got it.",
+     'status': 'Violation',
+     'reason': 'Comments about pricing or availability'},
+    {'review': "It didn't fit as advertised and seems to be for a much smaller baby than the sizing claims.",
+     'status': 'Not in violation',
+     'reason': 'No violation of Amazon guidelines'},
+    {'review': "Bu ürünü bir inceleme karşılığında ücretsiz aldım, bu yüzden görüşümü tuzla buz etmek istemeyebilirsiniz. Ürün iyi, ancak tam fiyatını öder miydim emin değilim.",
+     'status': 'Violation',
+     'reason': 'Content written in unsupported languages'},
+    {'review': "My order didn’t do what I wanted </3 _(ツ)_/ ",
+     'status': 'Violation',
+     'reason': 'Repetitive text, spam, or pictures created with symbols'},
+    {'review': "The product was fine, but I want more information. Call me at 123-456-7890..",
+     'status': 'Violation',
+     'reason': 'Private information'}
+]
 
 @app.route('/')
 def index():
@@ -388,8 +436,8 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     review = f"{title}, {body}"
 
                     # Create a dictionary with the extracted values
-                    result = {'review': review}
-                    examples = [result]
+                    # result = {'review': review}
+                    # examples = [result]
 
                     example_prompt = PromptTemplate(input_variables=["review"],
                                         template="Review: '''{review}'''\nStatus: \nReason: \nResult:")

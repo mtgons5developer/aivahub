@@ -1,15 +1,11 @@
 import os
 import csv
-import sys
 import traceback
 import time
-import json
+import torch
 from openai.error import RateLimitError
 import openai
-import psycopg2
-from psycopg2 import Error
 from guide import guidelines_prompt
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -20,72 +16,8 @@ load_dotenv()
 
 openai.openai_api_key = os.getenv('OPENAI_API_KEY')
 os.environ['OPENAI_API_KEY'] = openai.openai_api_key
-db_host = os.getenv('HOST')
-db_port = os.getenv('DB_PORT')
-db_name = os.getenv('DATABASE')
-db_user = os.getenv('DB_USER')
-db_password = os.getenv('PASSWORD')
-
-# Connect to the Cloud SQL PostgreSQL database
-def connect_to_database():
-    retry_count = 0
-    max_retries = 10
-    retry_delay = 5  # seconds
-
-    while retry_count < max_retries:
-        try:
-            conn = psycopg2.connect(
-                user=db_user,
-                password=db_password,
-                host=db_host,
-                port=db_port,
-                database=db_name
-            )
-            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-            print('Connected to Cloud SQL PostgreSQL database')
-            return conn
-        except Error as e:
-            print('Error connecting to Cloud SQL PostgreSQL database:', e)
-            retry_count += 1
-            print(f'Retrying connection ({retry_count}/{max_retries})...')
-            time.sleep(retry_delay)
-
-# Connect to the database
-conn = connect_to_database()
-
-# Check if the connection was successful
-if conn is None:
-    print('Unable to connect to the database. Exiting...')
-    sys.exit(1)
 
 chat_llm = ChatOpenAI(temperature=0.8)
-
-# Create a cursor to execute SQL queries
-cursor = conn.cursor()
-query = "SELECT * FROM tune_data2"
-cursor.execute(query)
-# Fetch all the rows from the result set
-rows = cursor.fetchall()
-# Create a list to store the JSON objects
-data = []
-for row in rows:
-    review = row[0]
-    status = row[1]
-    reason = row[2]
-    result = row[3]
-    examples = {
-        'review': row[6],
-        'reason': row[0],
-        'reason': row[4],
-        'status': row[1],
-        'status': row[5],
-        'result': row[2],
-        'result': row[5]  
-    }
-    data.append(examples)
-
-cursor.close()
-conn.close()
 
 def openAI():
     try:
@@ -135,23 +67,37 @@ def openAI():
                         # Combine the title and body columns with a comma separator
                         review = f"{title}, {body}"
 
+                        # Create a dictionary with the extracted values
+                        result = {'review': review}
+                        examples = pretrained #dldl
+                        print(examples)
+
                         example_prompt = PromptTemplate(
                             input_variables=["review"],
                             template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
                         )
 
                         few_shot_template = FewShotPromptTemplate(
-                            examples=data,
+                            examples=examples,
                             example_prompt=example_prompt,
                             prefix=guidelines_prompt,
                             suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
                             input_variables=["input"]
                         )
 
-                        llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+                        # Load the LLMChain model
+                        model_path = "llm_chain_model.pt"
+                        if os.path.isfile(model_path):
+                            llm_chain = torch.load(model_path)
+                            print("loaded")
+                        else:
+                            llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+                            # Save the LLMChain model for future use
+                            torch.save(llm_chain, model_path)
+                            print("saved")
 
                         answer = llm_chain.run(review)
-                        print(str(i) + " " + answer + '\n')
+                        # print(str(i) + " " + answer + '\n')
 
                         lines = answer.split("\n")
                         status = lines[0].replace("Status:", "").strip()
@@ -166,7 +112,9 @@ def openAI():
                                 result = "yes"
                                 print("ERROR")
 
+
                         # formatted_review = f'{{"review": "{review}", "reason": "{reason}", "status": "{status}", "result": "{result}"}}'
+
                         # print(formatted_review + "\n")
 
     except IOError as e:
@@ -176,5 +124,5 @@ def openAI():
         print("An error occurred:", e)
         traceback.print_exc()
 
-openAI()
 
+openAI()

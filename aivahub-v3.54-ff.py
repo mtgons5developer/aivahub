@@ -10,6 +10,7 @@ import psycopg2
 from psycopg2 import Error
 from guide import guidelines_prompt
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from transformers import GPT2Tokenizer
 
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
@@ -58,34 +59,59 @@ if conn is None:
     print('Unable to connect to the database. Exiting...')
     sys.exit(1)
 
-chat_llm = ChatOpenAI(temperature=0.8)
+chat_llm = ChatOpenAI(temperature=0)
 
 # Create a cursor to execute SQL queries
 cursor = conn.cursor()
-query = "SELECT * FROM tune_data2"
+# query = "SELECT * FROM tune_data2"
+query = "SELECT * FROM tune_data2 LIMIT 11"
+
 cursor.execute(query)
 # Fetch all the rows from the result set
 rows = cursor.fetchall()
-# Create a list to store the JSON objects
-data = []
+
+# Create a variable to store the formatted examples
+fine_tune = ""
+
 for row in rows:
-    review = row[0]
-    status = row[1]
-    reason = row[2]
-    result = row[3]
-    examples = {
-        'review': row[6],
-        'reason': row[0],
-        'reason': row[4],
-        'status': row[1],
-        'status': row[5],
-        'result': row[2],
-        'result': row[5]  
-    }
-    data.append(examples)
+    review = row[6]
+    status = str(row[1])
+    status2 = str(row[4])
+    reason = row[0]
+    reason2 = row[3]
+    result = str(row[2])
+    result2 = str(row[5])
+
+    # Format the example
+    data = (
+        '"review": "' + review + '",\n' +
+        '"status": "' + status + '",\n' +
+        '"status": "' + status2 + '",\n' +
+        '"reason": "' + reason + '",\n' +
+        '"reason": "' + reason2 + '",\n' +
+        '"result": "' + result + '",\n' +
+        '"result": "' + result2 + '"\n\n'
+    )
+
+    # Append the formatted example to the output
+    fine_tune += data
+
+# print(fine_tune)
+# quit()
 
 cursor.close()
 conn.close()
+
+# Replace {fine_tune} with the actual value
+guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
+
+# Calculates the number of tokens used in the given guidelines_prompt:
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+tokenized_prompt = tokenizer.encode(guidelines_prompt, add_special_tokens=False)
+num_tokens = len(tokenized_prompt)
+
+print("Number of tokens used:", num_tokens)
+# quit()
 
 def openAI():
     try:
@@ -131,9 +157,12 @@ def openAI():
                     elif rating in ['4', '5']:
                         continue
 
-                    else:
+                    elif rating in ['1', '2', '3']:
+
                         # Combine the title and body columns with a comma separator
                         review = f"{title}, {body}"
+                        result = {'review': review}
+                        data_examples = [result]
 
                         example_prompt = PromptTemplate(
                             input_variables=["review"],
@@ -141,7 +170,7 @@ def openAI():
                         )
 
                         few_shot_template = FewShotPromptTemplate(
-                            examples=data,
+                            examples=data_examples,
                             example_prompt=example_prompt,
                             prefix=guidelines_prompt,
                             suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
@@ -151,24 +180,30 @@ def openAI():
                         llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
                         answer = llm_chain.run(review)
-                        print(str(i) + " " + answer + '\n')
+                        print(str(i+1) + " " + answer + '\n')
+                        # quit()
 
-                        lines = answer.split("\n")
-                        status = lines[0].replace("Status:", "").strip()
-                        reason = lines[1].replace("Reason:", "").strip()
-                        result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
+                        # Run the code again if the status is empty
+                        if not status:
+                            answer = llm_chain.run(review)
+                            print(str(i) + " " + answer + '\n')
+                        # else:
+                            # print(str(i) + " Status already exists: " + status)
+                            # status = "SKIP"
 
-                        if result is None:
-                            if status == "Compliant":
-                                result = "no"
-                                print("ERROR")
-                            elif status == "Violation":
-                                result = "yes"
-                                print("ERROR")
+                        # lines = answer.split("\n")
+                        # status = lines[0].replace("Status:", "").strip()
+                        # reason = lines[1].replace("Reason:", "").strip()
+                        # result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
 
-                        # formatted_review = f'{{"review": "{review}", "reason": "{reason}", "status": "{status}", "result": "{result}"}}'
-                        # print(formatted_review + "\n")
-
+                        # if result is None:
+                        #     if status == "Compliant":
+                        #         result = "no"
+                        #         print("ERROR")
+                        #     elif status == "Violation":
+                        #         result = "yes"
+                        #         print("ERROR")
+                
     except IOError as e:
         print("Error reading the CSV file:", e)
 
@@ -177,4 +212,3 @@ def openAI():
         traceback.print_exc()
 
 openAI()
-

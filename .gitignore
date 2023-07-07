@@ -52,3 +52,4 @@ csv-gpt-21.csv
 myproject/
 gpt-4-0314.txt
 fine_tuned_model.pt
+llm_chain_model.pt

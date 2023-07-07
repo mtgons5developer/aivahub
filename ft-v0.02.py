@@ -1,25 +1,26 @@
 import os
-import csv
 import sys
-import traceback
+import csv
+import pandas as pd
 import time
+import traceback
 import json
-from openai.error import RateLimitError
-import openai
+import torch
 import psycopg2
 from psycopg2 import Error
-from guide import guidelines_prompt
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-
+import torch.nn as nn
 from langchain import OpenAI, LLMChain
 from langchain.chat_models import ChatOpenAI
+from guide import guidelines_prompt
+
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-openai.openai_api_key = os.getenv('OPENAI_API_KEY')
-os.environ['OPENAI_API_KEY'] = openai.openai_api_key
+# Retrieve the PostgreSQL connection details from environment variables
 db_host = os.getenv('HOST')
 db_port = os.getenv('DB_PORT')
 db_name = os.getenv('DATABASE')
@@ -51,46 +52,98 @@ def connect_to_database():
             time.sleep(retry_delay)
 
 # Connect to the database
-conn = connect_to_database()
+connection = connect_to_database()
 
 # Check if the connection was successful
-if conn is None:
+if connection is None:
     print('Unable to connect to the database. Exiting...')
     sys.exit(1)
 
-chat_llm = ChatOpenAI(temperature=0.8)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Load the pre-trained GPT model and tokenizer
+model_name = 'gpt2'  # or 'gpt2-medium', 'gpt2-large', 'gpt2-xl' for larger models
+model = GPT2LMHeadModel.from_pretrained(model_name).to(device)
+tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 
 # Create a cursor to execute SQL queries
-cursor = conn.cursor()
-query = "SELECT * FROM tune_data2"
+cursor = connection.cursor()
+# Execute the SQL query to retrieve data from the table
+query = "SELECT * FROM tune_data"
 cursor.execute(query)
 # Fetch all the rows from the result set
 rows = cursor.fetchall()
 # Create a list to store the JSON objects
 data = []
+# Format the rows as JSON objects and append them to the data list
 for row in rows:
-    review = row[0]
-    status = row[1]
-    reason = row[2]
-    result = row[3]
-    examples = {
-        'review': row[6],
-        'reason': row[0],
-        'reason': row[4],
-        'status': row[1],
-        'status': row[5],
-        'result': row[2],
-        'result': row[5]  
+    json_obj = {
+        'review': row[1],
+        'status': row[2],
+        'reason': row[3],
+        'result': row[4]
     }
-    data.append(examples)
+    data.append(json_obj)
 
+# Convert the data list to JSON format
+json_data = json.dumps(data, indent=4, ensure_ascii=False)
+
+# Close the cursor and the connection
 cursor.close()
-conn.close()
+connection.close()
+
+chat_llm = ChatOpenAI(temperature=0.8)
+
+# def fine_tune_gpt(file_path, epochs=1, learning_rate=1e-5):
+def fine_tune_gpt(json_data, epochs=1, learning_rate=1e-5):
+
+    # Create a list to store the tokenized data
+    tokenized_data = []
+
+    # Tokenize the reviews and append them to the tokenized_data list
+    for item in data:
+        review = item['review']
+        tokenized_review = tokenizer.encode(review, add_special_tokens=True)
+        tokenized_data.extend(tokenized_review)
+
+    # Convert the tokenized data to PyTorch tensors
+    inputs = torch.tensor(tokenized_data[:-1]).unsqueeze(0).to(device)
+    labels = torch.tensor(tokenized_data[1:]).unsqueeze(0).to(device)
+
+
+    # Create the optimizer and loss function
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    criterion = nn.CrossEntropyLoss()
+
+    # Fine-tuning loop
+    model.train()
+    for epoch in range(epochs):
+        optimizer.zero_grad()
+        outputs = model(inputs, labels=labels)
+        loss = criterion(outputs.logits.view(-1, outputs.logits.size(-1)), labels.view(-1))
+        loss.backward()
+        optimizer.step()
+
+        print(f"Epoch {epoch + 1}/{epochs} - Loss: {loss.item()}")
+
+    # Save the fine-tuned model
+    save_dir = os.path.dirname(os.path.realpath(__file__))
+    save_path = os.path.join(save_dir, 'fine_tuned_model.pt')
+    torch.save(model.state_dict(), save_path)
+    print(f"Fine-tuned model saved to: {save_path}")
 
 def openAI():
     try:
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
+        
+        # Fine-tune the GPT model
+        # fine_tune_gpt(json_data, epochs=3, learning_rate=1e-5)
+
+        model = GPT2LMHeadModel.from_pretrained("fine_tuned_model.pt")
+        # model = torch.load("fine_tuned_model.pt")
+        # model.eval()
+        # tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
         # Read the CSV file
         with open("csv/B00UFJNVTS - Heat Resistant Oven Mitts (2 pack)_ High Temperatu 2023-06-07.csv", "r") as file:
@@ -135,39 +188,17 @@ def openAI():
                         # Combine the title and body columns with a comma separator
                         review = f"{title}, {body}"
 
-                        example_prompt = PromptTemplate(
-                            input_variables=["review"],
-                            template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
-                        )
+                        # Create a dictionary with the extracted values
+                        result = {'review': review}
+                        examples = [result]
+                        print(review)
+                        quit()
 
-                        few_shot_template = FewShotPromptTemplate(
-                            examples=data,
-                            example_prompt=example_prompt,
-                            prefix=guidelines_prompt,
-                            suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
-                            input_variables=["input"]
-                        )
-
-                        llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
-
-                        answer = llm_chain.run(review)
-                        print(str(i) + " " + answer + '\n')
-
-                        lines = answer.split("\n")
-                        status = lines[0].replace("Status:", "").strip()
-                        reason = lines[1].replace("Reason:", "").strip()
-                        result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
-
-                        if result is None:
-                            if status == "Compliant":
-                                result = "no"
-                                print("ERROR")
-                            elif status == "Violation":
-                                result = "yes"
-                                print("ERROR")
-
-                        # formatted_review = f'{{"review": "{review}", "reason": "{reason}", "status": "{status}", "result": "{result}"}}'
-                        # print(formatted_review + "\n")
+                        input_ids = tokenizer.encode(review, return_tensors="pt")
+                        output = model.generate(input_ids, max_length=100)
+                        generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+                        print("Generated text:", generated_text)
+                        # quit()
 
     except IOError as e:
         print("Error reading the CSV file:", e)
@@ -175,6 +206,9 @@ def openAI():
     except Exception as e:
         print("An error occurred:", e)
         traceback.print_exc()
-
+        
 openAI()
+
+
+
 
