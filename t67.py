@@ -432,14 +432,15 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     review = f"{title}, {body}"
 
                     # Create a dictionary with the extracted values
-                    # result = {'review': review}
-                    # examples = [result]
+                    review = f"{title}, {body}"
+                    result = {'review': review}
+                    data_examples = [result]
 
                     example_prompt = PromptTemplate(input_variables=["review"],
                                         template="Review: '''{review}'''\nStatus: \nReason: \nResult:")
 
                     few_shot_template = FewShotPromptTemplate(
-                        examples=examples,
+                        examples=data_examples,
                         example_prompt=example_prompt,
                         prefix=guidelines_prompt,
                         suffix="Review: '''{input}",
