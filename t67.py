@@ -508,8 +508,8 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
 if __name__ == '__main__':
     # Create an SSL context
-    # ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    # ssl_context.load_cert_chain(certfile=certfile1, keyfile=keyfile1)
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(certfile=certfile1, keyfile=keyfile1)
     # Run the app with SSL enabled
-    # app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
-    app.run(host='0.0.0.0', port=8443, threaded=True)
+    app.run(ssl_context=ssl_context, host='0.0.0.0', port=8443, threaded=True)
+    # app.run(host='0.0.0.0', port=8443, threaded=True)
