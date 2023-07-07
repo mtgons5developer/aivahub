@@ -120,8 +120,8 @@ for row in rows:
 # print(fine_tune)
 # quit()
 
-cursor.close()
-conn.close()
+# cursor.close()
+# conn.close()
 
 # Replace {fine_tune} with the actual value
 guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
