@@ -117,12 +117,6 @@ for row in rows:
     # Append the formatted example to the output
     fine_tune += data
 
-# print(fine_tune)
-# quit()
-
-# cursor.close()
-# conn.close()
-
 # Replace {fine_tune} with the actual value
 guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
 
@@ -427,7 +421,7 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
 
                     cursor.execute(insert_query, (review, status, reason, result))
                     conn.commit()                
-                else:
+                elif rating in ['1', '2', '3']:
                     # Combine the title and body columns with a comma separator
                     review = f"{title}, {body}"
 
@@ -476,16 +470,9 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     if status == "In Violation":
                         status = "Violation"
 
-                    if result is None:
-                        if status == "Compliant":
-                            result = "no"
-                            print("ERROR")
-                        elif status == "Violation":
-                            result = "yes"
-                            print("ERROR")
-                        else:
-                            result = "maybe"
-                            print("ERROR")
+                    if status == "Not in Violation":
+                        status = "Compliant"
+
 
                     cursor.execute(insert_query, (review, status, reason, result))
                     conn.commit()

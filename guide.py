@@ -128,12 +128,9 @@ guidelines_prompt = '''
     Encouraging the dangerous misuse of a product is strictly prohibited.
     Why? Upholding legal and ethical standards is of utmost importance. By prohibiting content that promotes illegal activities, harm, or fraud, we maintain a safe and trustworthy community where users can engage responsibly and contribute to meaningful discussions.\n
 
-    Example training dataset:
-    {fine_tune}
-
     Always provide status: Only state Compliant or Violation for Status.
-    Always provide reason: State why it was in Violation or why it is Compliant as Reason:
-    Always provide result: If Compliant set Result: 'NO'. If in Violation set Result: 'YES'. The "Result" is assigned as "Maybe" to convey uncertainty or ambiguity. END'''
+    Always provide reason: Compliant or Violation. Explain why it's in Violation of the said guidelines.
+    Always provide result: If Compliant set Result: 'NO', don't add anything. If in Violation set Result: 'YES', don't add anything. The "Result" is assigned as "Maybe" to convey uncertainty. END'''
 
 '''
 '''''''''

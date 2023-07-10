@@ -55,7 +55,7 @@ csv_file = 'csv/final2.csv'  # Replace with your actual CSV file name
 df = pd.read_csv(csv_file)
 
 # Combine "Title" and "Body" columns into "review" column
-df['review'] = df['Title'] + ' ' + df['Body']
+df['review'] = df['Title'] + ', ' + df['Body']
 
 # Check if each "review" already exists in the table
 existing_reviews = set()

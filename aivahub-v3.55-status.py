@@ -59,65 +59,75 @@ if conn is None:
     print('Unable to connect to the database. Exiting...')
     sys.exit(1)
 
-# Create a cursor to execute SQL queries
-cursor = conn.cursor()
-# query = "SELECT * FROM tune_data2"
-query = "SELECT * FROM tune_data2 LIMIT 11"
+def load_fine_tune(cursor):
+    
+    global guidelines_prompt
 
-cursor.execute(query)
-# Fetch all the rows from the result set
-rows = cursor.fetchall()
+    # query = "SELECT * FROM tune_data4"
+    query = "SELECT * FROM tune_data4 LIMIT 10"
 
-# Create a variable to store the formatted examples
-fine_tune = ""
+    cursor.execute(query)
+    # Fetch all the rows from the result set
+    rows = cursor.fetchall()
 
-for row in rows:
-    review = row[6]
-    status = str(row[1])
-    status2 = str(row[4])
-    reason = row[0]
-    reason2 = row[3]
-    result = str(row[2])
-    result2 = str(row[5])
+    # Create a variable to store the formatted examples
+    fine_tune = ""
 
-    # Format the example
-    data = (
-        '"review": "' + review + '",\n' +
-        '"status": "' + status + '",\n' +
-        '"status": "' + status2 + '",\n' +
-        '"reason": "' + reason + '",\n' +
-        '"reason": "' + reason2 + '",\n' +
-        '"result": "' + result + '",\n' +
-        '"result": "' + result2 + '"\n\n'
-    )
+    for row in rows:
+        review = row[0]
+        # status = str(row[2])
+        status2 = str(row[5])
+        # reason = row[1]
+        reason2 = row[4]
+        # result = str(row[3])
+        result2 = str(row[6])
 
-    # Append the formatted example to the output
-    fine_tune += data
+        # Format the example
+        data = (
+            '"review": "' + str(review) + '",\n' +
+            # '"status": "' + status + '",\n' +
+            '"status": "' + status2 + '",\n' +
+            # '"reason": "' + str(reason) + '",\n' +
+            '"reason": "' + str(reason2) + '",\n' +
+            # '"result": "' + result + '",\n' +
+            '"result": "' + result2 + '"\n\n'
+        )
+        # print(data)
+        # Append the formatted example to the output
+        fine_tune += data
 
-# print(fine_tune)
-# quit()
+    # Replace {fine_tune} with the actual value
+    guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
 
-cursor.close()
-conn.close()
+    return guidelines_prompt
 
-# Replace {fine_tune} with the actual value
-guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
-
-# Calculates the number of tokens used in the given guidelines_prompt:
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-tokenized_prompt = tokenizer.encode(guidelines_prompt, add_special_tokens=False)
-num_tokens = len(tokenized_prompt)
-
-print("Number of tokens used:", num_tokens)
-# quit()
+# Function to check if a review exists in the table
+def review_exists(cursor, review):
+    query = "SELECT COUNT(*) FROM tune_data4 WHERE 'review' = %s"
+    cursor.execute(query, (review,))
+    count = cursor.fetchone()[0]
+    return count > 0
 
 def openAI():
     try:
+        no_count = 0
+        yes_count = 0
+        maybe_count = 0
+        not_applicable = 0
+        total = 0
+
+        # Create a cursor to execute SQL queries
+        cursor = conn.cursor()
+        # Call the function to create the fine_tune variable
+        guidelines_prompt = load_fine_tune(cursor)
+
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
 
         # Read the CSV file
         with open("csv/B00UFJNVTS - Heat Resistant Oven Mitts (2 pack)_ High Temperatu 2023-06-07.csv", "r") as file:
+        # with open("csv/20230630 - B0050FRY5Y - Reviews SMCS - PATRICK REVIEW.csv", "r") as file:    
+            
             csv_reader = csv.DictReader(file)
             title_column = None
             body_column = None
@@ -155,12 +165,13 @@ def openAI():
                     elif rating in ['4', '5']:
                         continue
 
-                    elif rating in ['1', '2', '3']:
-
+                    elif rating in ['1', '2', '3']:# and i == 85:
+                        total += 1
                         # Combine the title and body columns with a comma separator
                         review = f"{title}, {body}"
                         result = {'review': review}
                         data_examples = [result]
+                        # print(review)
 
                         example_prompt = PromptTemplate(
                             input_variables=["review"],
@@ -175,31 +186,13 @@ def openAI():
                             input_variables=["input"]
                         )
 
-                        chat_llm = ChatOpenAI(temperature=0)
+                        chat_llm = ChatOpenAI(temperature=0.5)
                         llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-                        # Initialize status
-                        status = None
-
-                        # Run the code again if the status is empty
-                        if not status:
-                            answer = llm_chain.run(review)
-                            # print(str(i) + " " + answer + '\n')
-
-                        elif status == "NaN":
-                            answer = llm_chain.run(review)
-                            # print(str(i) + " " + answer + '\n')
-
-                        else:
-                            answer = llm_chain.run(review)
-                            # print(str(i+1) + " " + answer + '\n')
-                            # quit()          
+                        answer = llm_chain.run(review)
+                        # print(str(i) + " " + answer + '\n')
 
                         # Extract reason
-                        # reason_start = answer.find("Reason:") + len("Reason:")
-                        # reason_end = answer.find("Status:")
-                        # reason = answer[reason_start:reason_end].strip()
-
                         reason_start = answer.find("Reason:") + len("Reason:")
                         reason_end = answer.find("Result:")
                         reason = answer[reason_start:reason_end].strip()
@@ -213,16 +206,28 @@ def openAI():
                         result_start = answer.find("Result:") + len("Result:")
                         result = answer[result_start:].strip()
 
-                        if status == "Not in Violation":
-                            status = "Compliant"
-
-                        if status == "In Violation":
-                            status = "Violation"
-
+                        print(i)
+                        print("Review:", review)
                         print("Reason:", reason)
                         print("Status:", status)
-                        print("Result:", result + '\n')      
-                        # quit()   
+                        print("Result:", result + '\n')
+
+                        if result.lower() == 'no':
+                            no_count += 1
+                        elif result.lower() == 'yes':
+                            yes_count += 1
+                        elif 'maybe' in result.lower():
+                            maybe_count += 1
+                        else:
+                            not_applicable += 1
+
+                # Print the counts
+                print("'Total' count:", total)
+                print("'No' count:", no_count)
+                print("'Yes' count:", yes_count)
+                print("'Maybe' count:", maybe_count)
+                print("'Not Applicable' count:", not_applicable)
+                # #264 total 4 high 12 moderate 19 low and 229 NA
 
     except IOError as e:
         print("Error reading the CSV file:", e)

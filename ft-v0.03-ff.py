@@ -69,7 +69,7 @@ tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 # Create a cursor to execute SQL queries
 cursor = connection.cursor()
 # Execute the SQL query to retrieve data from the table
-query = "SELECT * FROM tune_data4 LIMIT 9"
+query = "SELECT * FROM tune_data4 limit 15"
 cursor.execute(query)
 # Fetch all the rows from the result set
 rows = cursor.fetchall()
@@ -79,9 +79,12 @@ data = []
 for row in rows:
     json_obj = {
         'review': row[0],
-        'status': row[1],
-        'reason': row[2],
-        'result': row[3]
+        'status': row[2],
+        'status': row[5],
+        'reason': row[1],
+        'reason': row[4],
+        'result': row[3],
+        'result': row[6]
     }
     data.append(json_obj)
 
@@ -95,7 +98,7 @@ connection.close()
 chat_llm = ChatOpenAI(temperature=0.8)
 
 def fine_tune_gpt(json_data, epochs=1, learning_rate=1e-5):
-
+    print(json_data)
     # Create a list to store the tokenized data
     tokenized_data = []
 
@@ -138,6 +141,7 @@ def openAI():
         
         # Fine-tune the GPT model
         fine_tune_gpt(json_data, epochs=3, learning_rate=1e-5)
+        quit()
 
         # model = GPT2LMHeadModel.from_pretrained("fine_tuned_model.pt")
         # model = torch.load("fine_tuned_model.pt")
