@@ -66,39 +66,8 @@ model_name = 'gpt2'  # or 'gpt2-medium', 'gpt2-large', 'gpt2-xl' for larger mode
 model = GPT2LMHeadModel.from_pretrained(model_name).to(device)
 tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 
-# Create a cursor to execute SQL queries
-cursor = connection.cursor()
-# Execute the SQL query to retrieve data from the table
-query = "SELECT * FROM tune_data4 limit 15"
-cursor.execute(query)
-# Fetch all the rows from the result set
-rows = cursor.fetchall()
-# Create a list to store the JSON objects
-data = []
-# Format the rows as JSON objects and append them to the data list
-for row in rows:
-    json_obj = {
-        'review': row[0],
-        'status': row[2],
-        'status': row[5],
-        'reason': row[1],
-        'reason': row[4],
-        'result': row[3],
-        'result': row[6]
-    }
-    data.append(json_obj)
-
-# Convert the data list to JSON format
-json_data = json.dumps(data, indent=4, ensure_ascii=False)
-
-# Close the cursor and the connection
-cursor.close()
-connection.close()
-
-chat_llm = ChatOpenAI(temperature=0.8)
 
 def fine_tune_gpt(json_data, epochs=1, learning_rate=1e-5):
-    print(json_data)
     # Create a list to store the tokenized data
     tokenized_data = []
 
@@ -134,18 +103,72 @@ def fine_tune_gpt(json_data, epochs=1, learning_rate=1e-5):
     torch.save(model.state_dict(), save_path)
     print(f"Fine-tuned model saved to: {save_path}")
 
+# Create a cursor to execute SQL queries
+# cursor = connection.cursor()
+
+# # Initialize counters
+# start_row = 0
+# batch_size = 5
+
+# # Create a list to store all the JSON objects
+# all_data = []
+
+# # Loop through 22 iterations (220 rows / 10 rows per batch)
+# for _ in range(44):
+#     # Execute the SQL query to retrieve data from the table with LIMIT and OFFSET
+#     query = f"SELECT * FROM tune_data4 LIMIT {batch_size} OFFSET {start_row}"
+#     cursor.execute(query)
+
+#     # Fetch the rows from the result set
+#     rows = cursor.fetchall()
+
+#     # Create a list to store the JSON objects for the current batch
+#     data = []
+
+#     # Format the rows as JSON objects and append them to the data list
+#     for row in rows:
+#         json_obj = {
+#             'review': row[0],
+#             'status': row[5],
+#             'reason': row[4],
+#             'result': row[6]
+#         }
+#         data.append(json_obj)
+
+#     # Convert the data list to JSON format
+#     json_data = json.dumps(data, indent=4, ensure_ascii=False)
+#     # print(json_data + "\n")
+#     fine_tune_gpt(json_data, epochs=3, learning_rate=1e-5)
+#     # Append the current batch of JSON data to the list of all data
+#     all_data.extend(data)
+
+#     # Increment the start_row for the next batch
+#     start_row += batch_size
+
+# Print all the JSON data after the loop
+# for json_obj in all_data:
+#     print(json_obj)
+
+# cursor.close()
+# connection.close()
+
+chat_llm = ChatOpenAI(temperature=0.8)
+
+
 def openAI():
     try:
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
         
         # Fine-tune the GPT model
-        fine_tune_gpt(json_data, epochs=3, learning_rate=1e-5)
-        quit()
+        # fine_tune_gpt(json_data, epochs=3, learning_rate=1e-5)
+        # quit()
 
         # model = GPT2LMHeadModel.from_pretrained("fine_tuned_model.pt")
         # model = torch.load("fine_tuned_model.pt")
         model_state_dict = torch.load("fine_tuned_model.pt")
+        print(model_state_dict)
+        quit()
         model = GPT2LMHeadModel.from_pretrained("gpt2")
         model.load_state_dict(model_state_dict)
         tokenizer = GPT2Tokenizer.from_pretrained("gpt2")

@@ -1,9 +1,7 @@
-import re
 import os
 import csv
 import sys
 import traceback
-import unicodedata
 import time
 import json
 from openai.error import RateLimitError
@@ -66,7 +64,7 @@ def load_fine_tune(cursor):
     global guidelines_prompt
 
     # query = "SELECT * FROM tune_data4"
-    query = "SELECT * FROM tune_data4 LIMIT 10"
+    query = "SELECT * FROM tune_data4 LIMIT 9"
 
     cursor.execute(query)
     # Fetch all the rows from the result set
@@ -77,11 +75,11 @@ def load_fine_tune(cursor):
 
     for row in rows:
         review = row[0]
-        # status = str(row[2])
+        status = str(row[2])
         status2 = str(row[5])
-        # reason = row[1]
+        reason = row[1]
         reason2 = row[4]
-        # result = str(row[3])
+        result = str(row[3])
         result2 = str(row[6])
 
         # Format the example
@@ -110,40 +108,24 @@ def review_exists(cursor, review):
     count = cursor.fetchone()[0]
     return count > 0
 
-def has_unicode_characters(text):
-    for char in text:
-        if ord(char) > 127:
-            return True
-    return False
-
-def remove_unicode(sentence):
-    # Remove Unicode characters and replace them with a space
-    clean_sentence = re.sub(r'[^\x00-\x7F]', ' ', sentence)
-    
-    # Replace any multiple spaces with a single space
-    clean_sentence = re.sub(r' +', ' ', clean_sentence)
-    
-    return clean_sentence
-
 def openAI():
     try:
         no_count = 0
         yes_count = 0
         maybe_count = 0
         not_applicable = 0
-        total = 0
 
         # Create a cursor to execute SQL queries
         cursor = conn.cursor()
         # Call the function to create the fine_tune variable
-        guidelines_prompt = load_fine_tune(cursor)
+        fine_tune = load_fine_tune(cursor)
 
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
 
         # Read the CSV file
-        # with open("csv/B00UFJNVTS - Heat Resistant Oven Mitts (2 pack)_ High Temperatu 2023-06-07.csv", "r") as file:
-        with open("csv/20230630 - B0050FRY5Y - Reviews SMCS - PATRICK REVIEW.csv", "r") as file:    
+        with open("csv/B00UFJNVTS - Heat Resistant Oven Mitts (2 pack)_ High Temperatu 2023-06-07.csv", "r") as file:
+        # with open("csv/20230630 - B0050FRY5Y - Reviews SMCS - PATRICK REVIEW.csv", "r") as file:    
             
             csv_reader = csv.DictReader(file)
             title_column = None
@@ -180,83 +162,111 @@ def openAI():
                 elif rating in ['4', '5']:
                     continue
 
-                elif rating in ['1', '2', '3'] and i == 85:
-                    total += 1
+                elif rating in ['1', '2', '3']:# and i == 85:
+
                     # Combine the title and body columns with a comma separator
                     review = f"{title}, {body}"
-                    review = remove_unicode(review)
-                    #Introduces too many â€œbubblesâ€ in the small cup.
                     result = {'review': review}
                     data_examples = [result]
+                    print(review)
+
+                    example_prompt = PromptTemplate(
+                        input_variables=["review"],
+                        template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
+                    )
+
+                    few_shot_template = FewShotPromptTemplate(
+                        examples=data_examples,
+                        example_prompt=example_prompt,
+                        prefix=guidelines_prompt,
+                        suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
+                        input_variables=["input"]
+                    )
+
+                    chat_llm = ChatOpenAI(temperature=0)
+                    llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+
+                    answer = llm_chain.run(review)
+                    # print(str(i+1) + " " + answer + '\n')
                     
-                    unicode = has_unicode_characters(review)
+                    # Initialize status
+                    # status = None
 
-                    if unicode == True:
-                        status = 'Violation'
-                        reason = "Contains Unicode characters."
-                        result = 'yes'
-                        print(i)
+                    # # Run the code again if the status is empty
+                    # if not status:
+                    #     answer = llm_chain.run(review)
+                    #     print(str(i) + " " + answer + '\n')
+                    #     print("not status")
+
+                    # elif status == "NaN":
+                    #     answer = llm_chain.run(review)
+                    #     print(str(i) + " " + answer + '\n')
+                    #     print("NaN")
+
+                    # else:
+                    #     answer = llm_chain.run(review)
+                    #     print(str(i+1) + " " + answer + '\n')
+                    #     print("else:")
+
+                    # Extract reason
+                    reason_start = answer.find("Reason:") + len("Reason:")
+                    reason_end = answer.find("Result:")
+                    reason = answer[reason_start:reason_end].strip()
+
+                    # Extract status
+                    status_start = answer.find("Status:") + len("Status:")
+                    status_end = answer.find("\nReason:")
+                    status = answer[status_start:status_end].strip()
+
+                    # Extract result
+                    result_start = answer.find("Result:") + len("Result:")
+                    result = answer[result_start:].strip()
+
+                    if status == "Not in Violation":
+                        status = "Compliant"
+
+                    if status == "In Violation":
+                        status = "Violation"
+
+                    # Check if the status is "Violation" or "Compliant"
+                    if status == "Violation" or status == "Compliant":
+                        resulta = result.lower()
+                        print(i+1)
                         print("Review:", review)
                         print("Reason:", reason)
                         print("Status:", status)
-                        print("Result:", result + '\n')
-
+                        print("Result:", resulta + '\n')
                     else:
-                        example_prompt = PromptTemplate(
-                            input_variables=["review"],
-                            template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
-                        )
-
-                        few_shot_template = FewShotPromptTemplate(
-                            examples=data_examples,
-                            example_prompt=example_prompt,
-                            prefix=guidelines_prompt,
-                            suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
-                            input_variables=["input"]
-                        )
-
-                        chat_llm = ChatOpenAI(temperature=0.5)
-                        llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
-
-                        answer = llm_chain.run(review)
-                        # print(str(i) + " " + answer + '\n')
-
-                        # Extract reason
-                        reason_start = answer.find("Reason:") + len("Reason:")
-                        reason_end = answer.find("Result:")
-                        reason = answer[reason_start:reason_end].strip()
-
-                        # Extract status
-                        status_start = answer.find("Status:") + len("Status:")
-                        status_end = answer.find("\nReason:")
-                        status = answer[status_start:status_end].strip()
-
-                        # Extract result
-                        result_start = answer.find("Result:") + len("Result:")
-                        result = answer[result_start:].strip()
-
-                        print(i)
-                        print("Review:", review)
-                        print("Reason:", reason)
-                        print("Status:", status)
-                        print("Result:", result + '\n')
+                        # answer = llm_chain.run(review)
+                        reason = 'N/A'
+                        status = 'N/A'
+                        result = 'N/A'
 
                     if result.lower() == 'no':
                         no_count += 1
                     elif result.lower() == 'yes':
                         yes_count += 1
-                    elif 'maybe' in result.lower():
+                    elif result.lower() == 'maybe':
                         maybe_count += 1
-                    else:
+                    elif not_applicable == 'N/A':
                         not_applicable += 1
 
-            # Print the counts
-            print("'Total' count:", total)
-            print("'No' count:", no_count)
-            print("'Yes' count:", yes_count)
-            print("'Maybe' count:", maybe_count)
-            print("'Not Applicable' count:", not_applicable)
-            # #264 total 4 high 12 moderate 19 low and 229 NA
+                    # # Check if the review already exists in the table
+                    # if review_exists(cursor, review):
+                    #     # print(f"Review '{review}' already exists in the table. Skipping insertion.")
+                    #     continue
+                    # else:
+                    #     # Insert AI data into the table
+                    #     insert_query = f'INSERT INTO "tune_data4" ("review", "ai_reason", "ai_status", "ai_result") VALUES (%s, %s, %s, %s)'
+                    #     cursor.execute(insert_query, (review, status, reason, result))
+                    #     conn.commit()   
+
+                    # Print the counts
+                    # print("'No' count:", no_count)
+                    # print("'Yes' count:", yes_count)
+                    # print("'Maybe' count:", maybe_count)
+                    # print("'Not Applicable' count:", not_applicable)
+                    #264 total 4 high 12 moderate 19 low and 229 NA
 
     except IOError as e:
         print("Error reading the CSV file:", e)
