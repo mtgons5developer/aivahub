@@ -1,3 +1,5 @@
+import re
+import unicodedata
 import urllib.request
 import urllib.error
 import os
@@ -82,51 +84,53 @@ if conn is None:
     sys.exit(1)
 
 
-# Create a cursor to execute SQL queries
-cursor = conn.cursor()
-# query = "SELECT * FROM tune_data2"
-query = "SELECT * FROM tune_data2 LIMIT 11"
+def load_fine_tune(cursor):
+    
+    global guidelines_prompt
 
-cursor.execute(query)
-# Fetch all the rows from the result set
-rows = cursor.fetchall()
+    # query = "SELECT * FROM tune_data4"
+    query = "SELECT * FROM tune_data4 LIMIT 12"
 
-# Create a variable to store the formatted examples
-fine_tune = ""
+    cursor.execute(query)
+    # Fetch all the rows from the result set
+    rows = cursor.fetchall()
 
-for row in rows:
-    review = row[6]
-    status = str(row[1])
-    status2 = str(row[4])
-    reason = row[0]
-    reason2 = row[3]
-    result = str(row[2])
-    result2 = str(row[5])
+    # Create a variable to store the formatted examples
+    fine_tune = ""
 
-    # Format the example
-    data = (
-        '"review": "' + review + '",\n' +
-        '"status": "' + status + '",\n' +
-        '"status": "' + status2 + '",\n' +
-        '"reason": "' + reason + '",\n' +
-        '"reason": "' + reason2 + '",\n' +
-        '"result": "' + result + '",\n' +
-        '"result": "' + result2 + '"\n\n'
-    )
+    for row in rows:
+        review = row[0]
+        # status = str(row[2])
+        status2 = str(row[5])
+        # reason = row[1]
+        reason2 = row[4]
+        # result = str(row[3])
+        result2 = str(row[6])
 
-    # Append the formatted example to the output
-    fine_tune += data
+        # Format the example
+        data = (
+            '"review": "' + str(review) + '",\n' +
+            # '"status": "' + status + '",\n' +
+            '"status": "' + status2 + '",\n' +
+            # '"reason": "' + str(reason) + '",\n' +
+            '"reason": "' + str(reason2) + '",\n' +
+            # '"result": "' + result + '",\n' +
+            '"result": "' + result2 + '"\n\n'
+        )
+        # print(data)
+        # Append the formatted example to the output
+        fine_tune += data
 
-# Replace {fine_tune} with the actual value
-guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
+    # Replace {fine_tune} with the actual value
+    guidelines_prompt = guidelines_prompt.format(fine_tune=fine_tune)
+
+    return guidelines_prompt
 
 # Calculates the number of tokens used in the given guidelines_prompt:
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-tokenized_prompt = tokenizer.encode(guidelines_prompt, add_special_tokens=False)
-num_tokens = len(tokenized_prompt)
-
-print("Number of tokens used:", num_tokens)
-# quit()
+# tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+# tokenized_prompt = tokenizer.encode(guidelines_prompt, add_special_tokens=False)
+# num_tokens = len(tokenized_prompt)
+# print("Number of tokens used:", num_tokens)
 
 @app.route('/')
 def index():
@@ -347,9 +351,44 @@ def get_filename(ff_id):
     except Error as e:
         print('Error retrieving file details:', e)
         return jsonify({'error': 'Error retrieving file details'}), e
+
+def has_unicode_characters(text):
+    for char in text:
+        if ord(char) > 127:
+            return True
+    return False
+
+def remove_unicode(sentence):
+    # Remove Unicode characters and replace them with a space
+    clean_sentence = re.sub(r'[^\x00-\x7F]', ' ', sentence)
+    
+    # Replace any multiple spaces with a single space
+    clean_sentence = re.sub(r' +', ' ', clean_sentence)
+    
+    return clean_sentence
+
+def correct_spanish_text(text):
+    try:
+        # Normalize the text using NFKD normalization form
+        normalized_text = unicodedata.normalize('NFKD', text)
         
+        # Replace incorrect characters with their correct counterparts
+        corrected_text = normalized_text.encode('latin-1', 'ignore').decode('utf-8')
+        
+        return corrected_text
+    except UnicodeDecodeError:
+        # Handle decoding error
+        print("Decoding error occurred. Unable to correct the text.")
+        return text
+            
 def process_csv_and_openAI(bucket_name, new_filename, uuid):
     try:
+        no_count = 0
+        yes_count = 0
+        maybe_count = 0
+        not_applicable = 0
+        total = 0
+
         from langchain.prompts.few_shot import FewShotPromptTemplate
         from langchain.prompts.prompt import PromptTemplate
 
@@ -373,7 +412,11 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
         cursor = conn.cursor()
         cursor.execute(create_table_query)
         conn.commit()
-        data_to_insert = []
+
+        # Create a cursor to execute SQL queries
+        cursor = conn.cursor()
+        # Call the function to create the fine_tune variable
+        guidelines_prompt = load_fine_tune(cursor)
 
         # Insert data from the CSV file into the PostgreSQL table
         with open(temp_file_path, 'r') as csv_file:
@@ -422,60 +465,77 @@ def process_csv_and_openAI(bucket_name, new_filename, uuid):
                     cursor.execute(insert_query, (review, status, reason, result))
                     conn.commit()                
                 elif rating in ['1', '2', '3']:
+                    total += 1
                     # Combine the title and body columns with a comma separator
-                    review = f"{title}, {body}"
+                    review = f"{body}"
+                    unicode = has_unicode_characters(review)
+                    review = correct_spanish_text(review)
 
-                    # Create a dictionary with the extracted values
-                    review = f"{title}, {body}"
+                    if unicode == True:                    
+                        review = remove_unicode(review)
+
                     result = {'review': review}
                     data_examples = [result]
-
-                    example_prompt = PromptTemplate(input_variables=["review"],
-                                        template="Review: '''{review}'''\nStatus: \nReason: \nResult:")
+                
+                    example_prompt = PromptTemplate(
+                        input_variables=["review"],
+                        template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
+                    )
 
                     few_shot_template = FewShotPromptTemplate(
                         examples=data_examples,
                         example_prompt=example_prompt,
                         prefix=guidelines_prompt,
-                        suffix="Review: '''{input}",
+                        suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
                         input_variables=["input"]
                     )
-                    
-                    chat_llm = ChatOpenAI(temperature=0)
+
+                    chat_llm = ChatOpenAI(temperature=0.5)
                     llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-                    # Run the code again if the status is empty
-                    if not status:
-                        answer = llm_chain.run(review)
-                        print(str(i) + " " + answer + '\n')
+                    answer = llm_chain.run(review)
+                    # print(str(i) + " " + answer + '\n')
 
-                    elif status == "NaN":
-                        answer = llm_chain.run(review)
-                        print(str(i) + " " + answer + '\n')
+                    # Extract reason
+                    reason_start = answer.find("Reason:") + len("Reason:")
+                    reason_end = answer.find("Result:")
+                    reason = answer[reason_start:reason_end].strip()
 
+                    # Extract status
+                    status_start = answer.find("Status:") + len("Status:")
+                    status_end = answer.find("\nReason:")
+                    status = answer[status_start:status_end].strip()
+
+                    # Extract result
+                    result_start = answer.find("Result:") + len("Result:")
+                    result = answer[result_start:].strip()
+
+                    print(i)
+                    print("Review:", review)
+                    print("Reason:", reason)
+                    print("Status:", status)
+                    print("Result:", result + '\n')
+
+                    if result.lower() == 'no':
+                        no_count += 1
+                    elif result.lower() == 'yes':
+                        yes_count += 1
+                    elif 'maybe' in result.lower():
+                        maybe_count += 1
+                        result = 'maybe'
                     else:
-                        answer = llm_chain.run(review)
-                        print(str(i+1) + " " + answer + '\n')
-                        # quit()  
+                        not_applicable += 1
+                        result = 'N/A'
 
-                    lines = answer.split("\n")
-                    status = lines[0].replace("Status:", "").strip()
-                    reason = lines[1].replace("Reason:", "").strip()
-                    # result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
-                    try:
-                        result = lines[2].replace("Result:", "").strip().lower() if lines[2] else None
-                    except IndexError:
-                        result = None                    
-
-                    if status == "In Violation":
-                        status = "Violation"
-
-                    if status == "Not in Violation":
-                        status = "Compliant"
-
-
-                    cursor.execute(insert_query, (review, status, reason, result))
+                    cursor.execute(insert_query, (review, status, reason, result.lower()))
                     conn.commit()
+
+            # Print the counts
+            print("'Total' count:", total)
+            print("'No' count:", no_count)
+            print("'Yes' count:", yes_count)
+            print("'Maybe' count:", maybe_count)
+            print("'Not Applicable' count:", not_applicable)
 
         # Clean up the temporary file
         os.remove(temp_file_path)

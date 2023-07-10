@@ -125,6 +125,20 @@ def remove_unicode(sentence):
     
     return clean_sentence
 
+def correct_spanish_text(text):
+    try:
+        # Normalize the text using NFKD normalization form
+        normalized_text = unicodedata.normalize('NFKD', text)
+        
+        # Replace incorrect characters with their correct counterparts
+        corrected_text = normalized_text.encode('latin-1', 'ignore').decode('utf-8')
+        
+        return corrected_text
+    except UnicodeDecodeError:
+        # Handle decoding error
+        print("Decoding error occurred. Unable to correct the text.")
+        return text
+
 def openAI():
     try:
         no_count = 0
@@ -180,66 +194,63 @@ def openAI():
                 elif rating in ['4', '5']:
                     continue
 
-                elif rating in ['1', '2', '3'] and i == 85:
+                elif rating in ['1', '2', '3']:# and i == 12:
                     total += 1
                     # Combine the title and body columns with a comma separator
-                    review = f"{title}, {body}"
-                    review = remove_unicode(review)
-                    #Introduces too many â€œbubblesâ€ in the small cup.
+                    review = f"{body}"
+                    unicode = has_unicode_characters(review)
+                    review = correct_spanish_text(review)
+
+                    if unicode == True:                    
+                        review = remove_unicode(review)
+
                     result = {'review': review}
                     data_examples = [result]
-                    
-                    unicode = has_unicode_characters(review)
+                
+                    example_prompt = PromptTemplate(
+                        input_variables=["review"],
+                        template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
+                    )
 
-                    if unicode == True:
-                        status = 'Violation'
-                        reason = "Contains Unicode characters."
-                        result = 'yes'
-                        print(i)
-                        print("Review:", review)
-                        print("Reason:", reason)
-                        print("Status:", status)
-                        print("Result:", result + '\n')
+                    few_shot_template = FewShotPromptTemplate(
+                        examples=data_examples,
+                        example_prompt=example_prompt,
+                        prefix=guidelines_prompt,
+                        suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
+                        input_variables=["input"]
+                    )
 
-                    else:
-                        example_prompt = PromptTemplate(
-                            input_variables=["review"],
-                            template='Review: \'{review}\'\nStatus: \nReason: \nResult:'
-                        )
+                    chat_llm = ChatOpenAI(temperature=0.5)
+                    llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
 
-                        few_shot_template = FewShotPromptTemplate(
-                            examples=data_examples,
-                            example_prompt=example_prompt,
-                            prefix=guidelines_prompt,
-                            suffix='Review: \'{input}\'\nStatus: \nReason: \nResult:',
-                            input_variables=["input"]
-                        )
+                    answer = llm_chain.run(review)
+                    # print(str(i) + " " + answer + '\n')
 
-                        chat_llm = ChatOpenAI(temperature=0.5)
-                        llm_chain = LLMChain(llm=chat_llm, prompt=few_shot_template)
+                    # Extract reason
+                    reason_start = answer.find("Reason:") + len("Reason:")
+                    reason_end = answer.find("Result:")
+                    reason = answer[reason_start:reason_end].strip()
 
-                        answer = llm_chain.run(review)
-                        # print(str(i) + " " + answer + '\n')
+                    # Extract status
+                    status_start = answer.find("Status:") + len("Status:")
+                    status_end = answer.find("\nReason:")
+                    status = answer[status_start:status_end].strip()
 
-                        # Extract reason
-                        reason_start = answer.find("Reason:") + len("Reason:")
-                        reason_end = answer.find("Result:")
-                        reason = answer[reason_start:reason_end].strip()
+                    # Extract result
+                    result_start = answer.find("Result:") + len("Result:")
+                    result = answer[result_start:].strip()
 
-                        # Extract status
-                        status_start = answer.find("Status:") + len("Status:")
-                        status_end = answer.find("\nReason:")
-                        status = answer[status_start:status_end].strip()
+                    # # Check if the status is "Violation" or "Compliant"
+                    # if status == "Violation" or status == "Compliant":
+                    #     continue
+                    # else:
+                    #     result = 'N/A'
 
-                        # Extract result
-                        result_start = answer.find("Result:") + len("Result:")
-                        result = answer[result_start:].strip()
-
-                        print(i)
-                        print("Review:", review)
-                        print("Reason:", reason)
-                        print("Status:", status)
-                        print("Result:", result + '\n')
+                    print(i)
+                    print("Review:", review)
+                    print("Reason:", reason)
+                    print("Status:", status)
+                    print("Result:", result + '\n')
 
                     if result.lower() == 'no':
                         no_count += 1

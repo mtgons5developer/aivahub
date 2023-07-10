@@ -21,9 +21,7 @@ guidelines_prompt = '''
 
     3- Content written in unsupported languages:
     Supported languages for content are English and Spanish.
-    To ensure the usefulness of content, it should only be written in English or Spanish, depending on the supported language(s) of the Amazon site where it will appear.
-    For example, reviews written in French, German, Italian, Portuguese, Dutch, Russian, Chinese, Japanese, Korean, Arabic, Hindi, Turkish, Polish, Swedish, or any other unsupported language are not allowed on Amazon.com, as it only supports English and Spanish.
-    Please make sure to write your content in the appropriate supported language for the specific Amazon site to which it is intended.\n
+    It should only be written in English or Spanish.\n
 
     4- Repetitive Text, Spam, or Pictures Created with Symbols:
     Contributions with distracting content and spam are not allowed.
@@ -131,9 +129,9 @@ guidelines_prompt = '''
     Example training dataset:
     {fine_tune}\n
 
-    Always provide status: Only state Compliant or Violation for Status.
-    Always provide reason: Compliant or Violation. Explain why it's in Violation of the said guidelines.
-    Always provide result: If Compliant set Result: 'NO', don't add anything. If in Violation set Result: 'YES', don't add anything. The "Result" is assigned as "Maybe" to convey uncertainty. END'''
+    Status: Compliant or Violation w/o additional content.
+    If Status = Compliant then Reason = 'It doesn't violate any amazon guidelines'. If Status = Violation explain why it's in Violation of the said 14 guidelines.
+    If Compliant set Result: 'NO' w/o additional content. If in Violation set Result: 'YES' w/o additional content. The "Result" is assigned as "Maybe" to convey uncertainty.END'''
 
 '''
 '''''''''
